@@ -1,0 +1,4 @@
+pyspark
+yaml
+apache-flink 
+kafka-python
