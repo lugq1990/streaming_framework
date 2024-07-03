@@ -4,12 +4,12 @@ application:
 input:
   kafka:
     bootstrap_servers: "kafka-server:9092"
-    topics: ["transactions"]
+    topics: ["transaction"]
     group_id: "kpi_processing_group"
 
 kpis:
   - name: "Total Transaction Amount Per Minute"
-    source: "transactions"
+    source: "transaction"
     transformations:
       - type: "window"
         duration: "1 minute"
@@ -17,15 +17,15 @@ kpis:
         field: "amount"
 
   - name: "Active Customers Per Minute"
-    source: "transactions"
+    source: "transaction"
     transformations:
       - type: "window"
         duration: "1 minute"
       - type: "distinct_count"
         field: "customer_id"
 
-  - name: "Abnormal Transactions Per Minute"
-    source: "transactions"
+  - name: "Abnormal transaction Per Minute"
+    source: "transaction"
     transformations:
       - type: "filter"
         criteria: "amount > 10000"

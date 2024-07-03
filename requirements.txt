@@ -1,4 +1,5 @@
 pyspark
-yaml
+pyyaml
 apache-flink 
 kafka-python
+faker

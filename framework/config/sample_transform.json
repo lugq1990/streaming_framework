@@ -1,0 +1,39 @@
+{
+    "transformations": [
+        {
+            "type": "filter",
+            "column": "amount",
+            "condition": "> 100"
+        },
+        {
+            "type": "select",
+            "columns": ["transaction_id", "amount", "customer_id", "timestamp"]
+        },
+        {
+            "type": "withColumn",
+            "column": "amount_usd",
+            "expression": "amount * 0.15"
+        },
+        {
+            "type": "drop",
+            "columns": ["description", "account_number"]
+        },
+        {
+            "type": "groupBy",
+            "columns": ["customer_id"],
+            "aggregations": {
+                "total_amount": "sum(amount)",
+                "transaction_count": "count(transaction_id)"
+            }
+        },
+        {
+            "type": "orderBy",
+            "columns": ["timestamp"],
+            "ascending": "true"
+        },
+        {
+            "type": "limit",
+            "num": 100
+        }
+    ]
+}

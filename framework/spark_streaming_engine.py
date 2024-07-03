@@ -2,27 +2,42 @@ import yaml
 from pyspark.sql import SparkSession
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
-from uuid import uuid4
+
 import json
 
 
-global spark
+def read_data_stream(config):
+    # Kafka configuration (replace with your details)
+    bootstrap_servers = config.get('bootstrap_servers', "localhost:9092")
+    subscribe_topic = config.get('subscribe_topic', "transaction")
+
+    # Read data stream from Kafka
+    df = spark \
+        .readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", bootstrap_servers) \
+        .option("subscribe", subscribe_topic) \
+        .option("startingOffsets", "earliest") \
+        .load()
+
+    # Print the data to the console for demonstration (replace with your processing logic)
+    query = df.selectExpr("CAST(key AS STRING) AS key", "CAST(value AS STRING) AS value") \
+        .writeStream \
+        .format("console") \
+        .option("checkpointLocation", "/tmp/spark-checkpoint")  \
+        .start()
+
+    # Wait for query termination (optional)
+    query.awaitTermination()
 
 
-def load_config(config_path):
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
+
+def _convert_tranformation(df, config):
+    """Based on the config, convert the stream to a dataframe based on config"""
+    pass
 
 
-def load_spark(app_name='streaming_kafka'):
-    if not app_name:
-        app_name = "Kafka-Spark" + uuid4().hex[-4:]
-    spark = SparkSession \
-       .builder \
-       .appName(app_name) \
-       .getOrCreate()
-    return spark
+# def _convert_transformation_str_to_action():
 
 
 def process_stream(ssc, config):
@@ -33,13 +48,13 @@ def process_stream(ssc, config):
     }
     kafka_stream = KafkaUtils.createDirectStream(ssc, config['input']['kafka']['topics'], kafka_params)
     
-    transactions = kafka_stream.map(lambda record: json.loads(record[1]))
+    transaction = kafka_stream.map(lambda record: json.loads(record[1]))
     
     for kpi in config['kpis']:
         kpi_name = kpi['name']
         transformations = kpi['transformations']
         
-        kpi_stream = transactions
+        kpi_stream = transaction
         for transformation in transformations:
             if transformation['type'] == 'window':
                 kpi_stream = kpi_stream.window(transformation['duration'])
