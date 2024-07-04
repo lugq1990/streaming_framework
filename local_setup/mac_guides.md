@@ -28,5 +28,8 @@
 
   # read from topic
   bin/kafka-console-consumer.sh --topic transaction --from-beginning --bootstrap-server localhost:9092
+
+  # read for write topic
+  bin/kafka-console-consumer.sh --topic transaction_output --from-beginning --bootstrap-server localhost:9092
   ```
 

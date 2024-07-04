@@ -29,7 +29,7 @@ class SparkSessionSingleton(object):
                .builder \
                .appName(app_name) \
                .master(master) \
-               .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2") \
+               .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
                .getOrCreate()
         
         if enable_checkpoint and not checkpoint_dir:

@@ -239,11 +239,11 @@ class fileSinkFactory:
        
         # convert to key value 
         value_expr = to_json(struct([col(c) for c in selected_cols])).alias("value")
-        # selected_df = df.select(value_expr, col(key_col).cast("string").alias("key"))
-        kafka_df = df.select(col("amount").cast("string").alias("key"), col("transaction_id").cast("string").alias("key"))
+        selected_df = df.select(value_expr, col(key_col).cast("string").alias("key"))
+        # kafka_df = df.select(col("amount").cast("string").alias("value"), col("transaction_id").cast("string").alias("key"))
         print('value_expr: ', value_expr)
         
-        return kafka_df \
+        return selected_df \
             .writeStream \
             .format("kafka") \
             .option("kafka.bootstrap.servers", params['bootstrapServers']) \
