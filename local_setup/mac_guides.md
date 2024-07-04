@@ -12,8 +12,11 @@
   # start kafka broker
   bin/kafka-server-start.sh config/server.properties
 
-  # create topic
+  # create topic for read
   bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 4 --topic transaction
+
+  # create topic for write
+  bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 4 --topic transaction_output
 
   # describe topic
   bin/kafka-topics.sh --describe --topic transaction --bootstrap-server localhost:9092
@@ -27,4 +30,3 @@
   bin/kafka-console-consumer.sh --topic transaction --from-beginning --bootstrap-server localhost:9092
   ```
 
-  

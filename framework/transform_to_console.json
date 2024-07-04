@@ -51,11 +51,6 @@
         }
     ],
     "output": {
-        "type": "write_to_kafka",
-        "params":{
-            "bootstrapServers": "localhost:9092",
-            "topic": "transaction_output" ,
-            "key_col": "transaction_id"  
-        }
+        "type": "log_to_console"
     }
 }

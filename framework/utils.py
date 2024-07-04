@@ -2,23 +2,52 @@ import yaml
 import json
 from uuid import uuid4
 from pyspark.sql import SparkSession
+from pyspark.streaming import StreamingContext
 import os
+import tempfile
 
+
+def get_spark_session(app_name=None):
+    return SparkSessionSingleton.get_spark_instance(app_name=app_name)
+
+
+def get_streaming_context(batchDuration=10):
+    return SparkSessionSingleton.get_spark_streaming_instance(batchDuration=batchDuration)
 
 
 class SparkSessionSingleton(object):
-    _instance = None
+    _spark_instance = None
+    _streaming_instance = None
     
     @staticmethod
-    def get_instance(app_name='sparksession', master='local[*]'):
-        if not SparkSessionSingleton._instance:
-            SparkSessionSingleton._instance = SparkSession \
+    def get_spark_instance(app_name='sparksession', master='local[*]', enable_checkpoint=False, checkpoint_dir=None):
+        if not app_name:
+            app_name = 'SparkSessionSingleton' + uuid4().hex
+            
+        if not SparkSessionSingleton._spark_instance:
+            SparkSessionSingleton._spark_instance = SparkSession \
                .builder \
                .appName(app_name) \
                .master(master) \
                .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2") \
                .getOrCreate()
-        return SparkSessionSingleton._instance
+        
+        if enable_checkpoint and not checkpoint_dir:
+            # todo: checkpoint don't need to be in config, just in code for resistency, but should be in hdfs.
+            tmp_dir = tempfile.mkdtemp()
+            SparkSessionSingleton._spark_instance.option("checkpointLocation", tmp_dir)
+        return SparkSessionSingleton._spark_instance
+    
+    @staticmethod
+    def get_spark_streaming_instance(app_name='sparksession', master='local[*]', batchDuration=10):
+        if not SparkSessionSingleton._spark_instance:
+            _spark_instance = SparkSessionSingleton.get_spark_instance(app_name=app_name, master=master)
+        else:
+            _spark_instance = SparkSessionSingleton._spark_instance
+            
+        if not SparkSessionSingleton._streaming_instance:
+            SparkSessionSingleton._streaming_instance = StreamingContext(_spark_instance.sparkContext, batchDuration=batchDuration)
+        return SparkSessionSingleton._streaming_instance
     
     
 

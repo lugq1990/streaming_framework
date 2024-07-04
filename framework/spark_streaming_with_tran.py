@@ -127,3 +127,6 @@ query = transformed_df.writeStream \
 
 # Wait for the streaming to finish
 query.awaitTermination()
+
+# todo: next step is to contain the logic into functions and call it from here.
+# with the sink config to support: file, hdfs, hive, kafka, etc.
