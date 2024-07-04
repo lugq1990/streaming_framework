@@ -19,19 +19,6 @@
             "columns": ["description", "account_number"]
         },
         {
-            "type": "groupBy",
-            "columns": ["customer_id"],
-            "aggregations": {
-                "total_amount": "sum(amount)",
-                "transaction_count": "count(transaction_id)"
-            }
-        },
-        {
-            "type": "orderBy",
-            "columns": ["timestamp"],
-            "ascending": "true"
-        },
-        {
             "type": "limit",
             "num": 100
         }

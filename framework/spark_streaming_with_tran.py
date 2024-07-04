@@ -1,7 +1,9 @@
 import json
+import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, expr, from_json, to_timestamp
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, FloatType, TimestampType;
+from utils import check_config_transform
 
 class TransformationEngine:
     def __init__(self, config):
@@ -54,8 +56,33 @@ spark = SparkSession.builder \
 spark.sparkContext.setLogLevel("WARN")
 
 # Load the transformation configuration
-with open('transformations.json', 'r') as file:
-    config = json.load(file)
+
+def convert_str_to_bool(obj):
+    if isinstance(obj, str):
+        if obj.lower() == "true":
+            return True
+        elif obj.lower() == "false":
+            return False
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            obj[key] = convert_str_to_bool(value)
+    elif isinstance(obj, list):
+        for index, value in enumerate(obj):
+            obj[index] = convert_str_to_bool(value)
+    return obj
+
+def load_config(file_path):
+    with open(file_path, 'r') as file:
+        config = json.load(file)
+    return convert_str_to_bool(config)
+
+
+  
+config_path = '/Users/guangqianglu/Documents/codes/my_codes/streaming_framework/framework/sample_transform.json'
+config = load_config(config_path)
+print(config)
+
+check_config_transform(config=config)
 
 # Define the schema for the transaction data
 schema = StructType([
@@ -74,7 +101,7 @@ kafka_df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9092") \
     .option("subscribe", "transaction") \
-    .option("startingOffsets", "latest") \
+    .option("startingOffsets", "earliest") \
     .load()
 
 # Select the value column and cast it to string

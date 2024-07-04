@@ -1,11 +1,28 @@
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
+from uuid import uuid4
 
-# Create or retrieve a SparkSession
-spark = SparkSession.builder \
-    .appName("KafkaStreamReader") \
-    .getOrCreate()
+
+
+
+
+class SparkSessionSingleton(object):
+    _instance = None
+    
+    @staticmethod
+    def get_instance(app_name='sparksession', master='local[*]'):
+        if not SparkSessionSingleton._instance:
+            SparkSessionSingleton._instance = SparkSession \
+               .builder \
+               .appName(app_name) \
+               .master(master) \
+               .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2") \
+               .getOrCreate()
+        return SparkSessionSingleton._instance
+    
+
+spark = SparkSessionSingleton.get_instance()
 
 # Kafka configuration (replace with your details)
 bootstrap_servers = "localhost:9092"

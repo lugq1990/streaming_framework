@@ -1,0 +1,41 @@
+{
+    "basic": [
+        "select",
+        "map",
+        "flatMap",
+        "filter",
+        "repartition",
+        "withColumn",
+        "dropDuplicates",
+        "drop",
+        "limit"
+    ],
+    "pair_dstream": [
+        "reduceByKey",
+        "groupByKey",
+        "mapValues",
+        "flatMapValues",
+        "reduceByKeyAndWindow",
+        "countByValue"
+    ],
+    "window": [
+        "window",
+        "countByWindow",
+        "reduceByWindow"
+    ],
+    "join": [
+        "join",
+        "leftOuterJoin",
+        "rightOuterJoin",
+        "cogroup"
+    ],
+    "update_state": [
+        "updateStateByKey"
+    ],
+    "output": [
+        "print",
+        "saveAsTextFiles",
+        "saveAsObjectFiles",
+        "foreachRDD"
+    ]
+}
