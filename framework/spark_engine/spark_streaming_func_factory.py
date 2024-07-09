@@ -259,6 +259,27 @@ class fileSinkFactory:
         return self.sink_factary[sink_type](df, sink_params)
             
     
+def _infer_df_schema_for_kafka(df, spark, is_kafka=True):
+    """ this should be called only when the read the kafka data, otherwise will infer full data schema
+
+    Args:
+        df (_type_): _description_
+        spark (_type_): _description_
+        is_kafka (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
+    if is_kafka:
+        sample_json = df.selectExpr("CAST(value AS STRING)").take(1)[0][0]
+    else:
+        # if ono need to cast the data type to string
+        sample_json = df.take(1)[0][0]
+        
+    schema = spark.read.format(spark.sparkContext.param([sample_json])) \
+         .schema()
+    return schema
+    
 
 if __name__ == '__main__':
     # Example usage:
@@ -284,19 +305,24 @@ if __name__ == '__main__':
     # Select the value column and cast it to string
     transactions_df = kafka_df.selectExpr("CAST(value AS STRING)")
     
-    schema = StructType([
-        StructField("transaction_id", StringType(), True),
-        StructField("amount", FloatType(), True),
-        StructField("customer_id", StringType(), True),
-        StructField("transaction_type", StringType(), True),
-        StructField("timestamp", StringType(), True),  # We'll convert this to TimestampType later
-        StructField("description", StringType(), True),
-        StructField("account_number", StringType(), True),
-        StructField("merchant", StringType(), True)
-    ])
+    # here should be changed to a more generic way
+    # schema = StructType([
+    #     StructField("transaction_id", StringType(), True),
+    #     StructField("amount", FloatType(), True),
+    #     StructField("customer_id", StringType(), True),
+    #     StructField("transaction_type", StringType(), True),
+    #     StructField("timestamp", StringType(), True),  # We'll convert this to TimestampType later
+    #     StructField("description", StringType(), True),
+    #     StructField("account_number", StringType(), True),
+    #     StructField("merchant", StringType(), True)
+    # ])
 
 
     # Parse the JSON data and apply the schema
+    # here let the spark to infer the schema dymanically 
+
+    schema = _infer_df_schema_for_kafka(df=transactions_df, spark=spark)
+         
     parsed_df = transactions_df \
         .select(from_json(col("value"), schema).alias("data")) \
         .select("data.*")

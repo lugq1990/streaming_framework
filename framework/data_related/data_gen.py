@@ -42,8 +42,8 @@ def send_transactions_to_kafka(topic, num_transactions):
 
 if __name__ == "__main__":
     # Configuration
-    kafka_topic = 'transaction'
-    number_of_transactions = 100  # Number of transactions to generate
+    kafka_topic = 'test'
+    number_of_transactions = 10  # Number of transactions to generate
 
     # Generate and send transactions
     send_transactions_to_kafka(kafka_topic, number_of_transactions)
