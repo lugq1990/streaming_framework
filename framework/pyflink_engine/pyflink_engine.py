@@ -118,14 +118,28 @@ class FlinkStreamingApp:
         self._logger.debug(f"DDL: {create_table_ddl}")
 
         return table_name
+    
+    @staticmethod
+    def _infer_table_schema(table_obj):
+        """Base on table obj to get schema pair"""
+        schema = table_obj.get_schema()
+        schema = {x[0]: x[1] for x in zip(schema.get_field_names(), schema.get_field_data_types())}
+        return schema
 
-    def _init_kafka_sink(self, schema: Dict):
+    def _init_kafka_sink(self, last_table_obj=None):
+        """
+        Just based on the last query table object, then could infer output schema"""
+        # TODO: should provide the last one table name, based on executed query, infer last table schema, and construct sink kafka type
+        # with key-value type.
         output_config = self.config['output_config']
          # these config must be provided.
         topic = output_config['topic_name']
         bootstrap_servers = output_config['bootstrap_servers']
         
+        # todo: here is based on the query or based on the
+        schema = FlinkStreamingApp._infer_table_schema(last_table_obj)
         schema_ddl = ', '.join([f'`{col}` {dtype}' for col, dtype in schema.items()])
+        # schema_ddl = ', '.join([f'`{col}` {dtype}' for col, dtype in schema.items()])
         table_name = self._generate_random_str()
         
         create_table_ddl = f"""
