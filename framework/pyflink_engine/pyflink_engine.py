@@ -211,6 +211,7 @@ class DataUtil:
             auto_offset_reset='earliest', 
             enable_auto_commit=False )
         try:
+            # here what if don't get records, should solve this.
             for i, c in enumerate(consumer):
                 if c is not None:
                     print(c)

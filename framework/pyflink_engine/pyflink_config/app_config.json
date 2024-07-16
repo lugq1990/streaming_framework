@@ -1,0 +1,26 @@
+{
+    "appName": "MyFlinkApp",
+    "savepointPath": "file:///path/to/savepoint",
+    "taskManagerMemory": "1024m",
+    "numTaskSlots": 4,
+    "parallelism": 2,
+    "jobManagerMemory": "2048m",
+    "restartStrategy": {
+        "type": "fixed-delay",
+        "attempts": 3,
+        "delay": "10 s"
+    },
+    "checkpoint":{
+        "path": "file:///path/to/checkpoint",
+        "checkpointInterval": 6000
+    },
+    "stateBackend": {
+        "type": "filesystem",
+        "path": "file:///path/to/state/backend"
+    },
+    "highAvailability": {
+        "mode": "zookeeper",
+        "zookeeperQuorum": "localhost:2181",
+        "storagePath": "file:///path/to/ha/storage"
+    }
+}

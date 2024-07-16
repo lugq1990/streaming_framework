@@ -1,9 +1,4 @@
-# streaming_framework
-A config file based streaming framework based on flink and spark streaming
-
 ## Design pattern
-
-![Design process pattern](./local_setup/materials/streaming_framwork.png)
 
 ### Problem statement
 
