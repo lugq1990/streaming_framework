@@ -10,7 +10,35 @@ from pyspark.sql.types import StructType, StructField, StringType, FloatType, Ti
 from utils import check_config_transform
 from utils import load_config, get_spark_session, get_streaming_context
 import tempfile
+from abc import ABC
 
+
+class DataSink(ABC):
+    def __init__(self, config) -> None:
+        self.config = config
+        super().__init__()
+        
+    def sink(self, df, params):
+        pass
+    
+    
+class DataSource(ABC):
+    def __init__(self, config) -> None:
+        self.config = config
+        super().__init__()
+        
+    def read(self, config):
+        pass
+
+
+class DataTransformation(ABC):
+    def __init__(self, config) -> None:
+        self.config = config
+        super().__init__()
+        
+    def transfapply_transformationsorm(self, df):
+        pass
+    
 
 def map_function(params):
     func = eval(params['function'])
@@ -34,7 +62,7 @@ def flat_map_values_function(params):
     return func
 
 
-class SparkStreamingProcessor:
+class SparkStreamingProcessor(DataTransformation):
     def __init__(self, config):
         self.config = config
 
@@ -179,39 +207,104 @@ class SparkStreamingProcessor:
             else:
                 raise ValueError(f"Unsupported transformation type: {trans_type}")
 
-        # sink data
-        dstream = fileSinkFactory().sink(df=dstream, params=output_config)
+        # dstream = DataSinkFactory().sink(df=dstream, params=output_config)
         return dstream
+    
+    
 
+class DataSourceFactory(DataSource):
+    def __init__(self, config) -> None:
+        self.config = config
+        
+        self.source_factory = {
+            'read_console': self.read_console,
+            'read_hdfs': self.read_hdfs,
+            'read_file': self.read_file,
+            'read_kafka': self.read_kafka,
+        }
+         
+    def read_kafka(self):
+        bootstrap_servers = self.config['bootstrap_servers']
+        input_topic = self.config['input_topic']
+        startingOffsets = self.config.get('startingOffsets',  'earliest')
+        
+        return self.spark \
+            .readStream \
+            .format("kafka") \
+            .option("kafka.bootstrap.servers", bootstrap_servers) \
+            .option("subscribe", input_topic) \
+            .option("startingOffsets", startingOffsets) \
+            .load()
+            
+    def read_file(self):
+        file_path = self.config['file_path']
+        file_type = self.config.get('file_type', 'csv')
+        infer_schema = self.config.get('infer_schema', 'true')
+        
+        return self.spark \
+           .readStream \
+           .format(file_type) \
+           .option("header", infer_schema) \
+           .load(file_path)
+           
+    def read_hdfs(self):
+        file_path  = self.config['file_path']
+        file_type  = self.config.get('file_type', 'csv')
+        
+        return self.spark \
+           .readStream \
+           .format(file_type) \
+           .load(file_path)
+           
+    def read_console(self):
+        return self.spark \
+           .readStream \
+           .format("console") \
+           .load()
+           
+    def read(self):
+        """Core function to read data from a source
 
-class fileSinkFactory:
-    def __init__(self):
+        Args:
+            config (Dict):  _description_
+
+        Returns:
+            _type_: _description_
+        """
+        source_config = self.config['source']
+        source_type = source_config['type']
+        read_config = source_config['read_config']
+        
+        return self.source_factory[source_type](read_config)
+        
+  
+class DataSinkFactory(DataSink):
+    #TODO: currently is only for spark, for flink should be similar
+    def __init__(self, config):
+        self.config = config['sink']
         self.sink_factary = {
             'log_to_console': self.log_to_console,
-            'write_to_hdfs': self.write_to_hdfs,
             'write_to_file': self.write_to_file,
             'write_to_kafka': self.write_to_kafka,
         }
         
-    @staticmethod   
-    def log_to_console(df, params):
-        if not params:
-            mode = 'append'
+    def log_to_console(self, df): 
+        mode = self.config.get('mode', 'append')
         return df.writeStream \
             .outputMode(mode) \
             .format("console") \
             .start()
     
-    @staticmethod
-    def write_to_file(df, params):
-        return df.write.format("csv").option("header", "true").save(params['path'])
+    def write_to_file(self, df):
+        """Support both local file and hdfs"""
+        file_path = self.config['file_path']
+        file_type = self.config.get('file_type', 'csv')
+        infer_schema = self.config.get('infer_schema', 'true')
+        
+        return df.write.format(file_type).option("header", infer_schema).save(file_path)
 
-    @staticmethod
-    def write_to_hdfs(df, params):
-        return df.write.format("parquet").save(params['path'])
 
-    @staticmethod
-    def write_to_kafka(df, params, default_split_key=','):
+    def write_to_kafka(self, df):
         """Write data to kafka, supported with selected cols to dump.
         key_col must be provided, as the kafka only support with key-value pairs.
 
@@ -223,8 +316,14 @@ class fileSinkFactory:
         Returns:
             _type_: _description_
         """
-        selected_cols = params.get('selected_cols', None)
-        key_col = params.get('key_col')
+        selected_cols = self.config.get('selected_cols', None)
+        key_col = self.config.get('key_col')
+        default_split_key = self.config.get('default_split_key', ',')
+        
+        bootstrap_servers = self.config['bootstrap_servers']
+        topic = self.config['topic']
+
+        
         if not key_col:
             raise ValueError("write to kafka must provide the key_col!")
         
@@ -246,16 +345,18 @@ class fileSinkFactory:
         return selected_df \
             .writeStream \
             .format("kafka") \
-            .option("kafka.bootstrap.servers", params['bootstrapServers']) \
-            .option("topic", params['topic']) \
+            .option("kafka.bootstrap.servers", bootstrap_servers) \
+            .option("topic", topic) \
             .option("checkpointLocation", tempfile.mkdtemp()) \
             .start()
             
-    def sink(self, df, params):
-        sink_type = params['type']
-        sink_params = params.get('params', '')
+    def sink(self, df):
+        sink_type = self.config['sink_type']
+        sink_params = self.config.get('params', '')
+        
         if sink_type not in self.sink_factary:
             raise Exception(f'Sink type {sink_type} is not supported')
+        
         return self.sink_factary[sink_type](df, sink_params)
             
     
@@ -304,18 +405,7 @@ if __name__ == '__main__':
 
     # Select the value column and cast it to string
     transactions_df = kafka_df.selectExpr("CAST(value AS STRING)")
-    
-    # here should be changed to a more generic way
-    # schema = StructType([
-    #     StructField("transaction_id", StringType(), True),
-    #     StructField("amount", FloatType(), True),
-    #     StructField("customer_id", StringType(), True),
-    #     StructField("transaction_type", StringType(), True),
-    #     StructField("timestamp", StringType(), True),  # We'll convert this to TimestampType later
-    #     StructField("description", StringType(), True),
-    #     StructField("account_number", StringType(), True),
-    #     StructField("merchant", StringType(), True)
-    # ])
+
 
 
     # Parse the JSON data and apply the schema

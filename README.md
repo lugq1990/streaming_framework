@@ -17,6 +17,8 @@ Both of frameworks support `SQL` logic.
 
 Core of this framework define source, sink, with related transformations for the data stream.
 
+User could just provide a config file that will define which platform to use with `spark` and `flink`, the framework will do the rest.
+
 ### Design
 
 Config file based, one is for each application, the other is for the framework setting, so for each appilication could set some configs related to each apps.
