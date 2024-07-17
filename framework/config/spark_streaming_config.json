@@ -1,0 +1,25 @@
+{
+    "streaming": {
+        "spark.sql.streaming.checkpointLocation": "/tmp/spark/checkpoint",
+        "spark.sql.streaming.stateStore.providerClass": "org.apache.spark.sql.execution.streaming.state.HDFSBackedStateStoreProvider",
+        "spark.streaming.backpressure.enabled": "true",
+        "spark.streaming.kafka.maxRatePerPartition": "100",
+        "spark.streaming.kafka.minRatePerPartition": "10",
+        "spark.streaming.stopGracefullyOnShutdown": "true",
+        "spark.sql.streaming.statefulOperator.checkCorrectness.enabled": "true",
+        "spark.streaming.receiver.writeAheadLog.enable": "true",
+        "spark.streaming.blockInterval": "200ms",
+        "spark.streaming.unpersist": "true",
+        "spark.streaming.kafka.consumer.poll.ms": "512",
+        "spark.streaming.backpressure.initialRate": "50",
+        "spark.sql.streaming.minBatchesToRetain": "10",
+        "spark.sql.streaming.stateStore.maintenanceInterval": "2s"
+    },
+    "resources": {
+        "spark.executor.memory": "4g",
+        "spark.executor.cores": "2",
+        "spark.driver.memory": "2g",
+        "spark.driver.cores": "1",
+        "spark.sql.shuffle.partitions": "200"
+    }
+}

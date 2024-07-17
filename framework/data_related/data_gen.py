@@ -31,10 +31,15 @@ def generate_transaction():
 
 def send_transactions_to_kafka(topic, num_transactions):
     """Generate and send multiple transactions to a Kafka topic."""
+    # todo: here send data isn't correctly as expected
     for _ in range(num_transactions):
         transaction = generate_transaction()
-        producer.send(topic, transaction)
-        print(f"Sent transaction: {transaction}")
+        # here should with key, value into binary
+        record = {'key': transaction['transaction_id'], 
+                  'value': json.dumps(transaction)}
+        record_str = json.dumps(record)
+        producer.send(topic, record_str)
+        print(f"Sent transaction: {record_str}")
 
     # Block until all messages are sent
     producer.flush()

@@ -7,12 +7,13 @@ import os
 import tempfile
 
 
-def get_spark_session(app_name=None):
-    return SparkSessionSingleton.get_spark_instance(app_name=app_name)
+
+def get_spark_session():
+    return SparkSessionSingleton.get_spark_instance()
 
 
-def get_streaming_context(batchDuration=10):
-    return SparkSessionSingleton.get_spark_streaming_instance(batchDuration=batchDuration)
+# def get_streaming_context(batchDuration=10):
+#     return SparkSessionSingleton.get_spark_streaming_instance(batchDuration=batchDuration)
 
 
 class SparkSessionSingleton(object):
@@ -20,22 +21,46 @@ class SparkSessionSingleton(object):
     _streaming_instance = None
     
     @staticmethod
-    def get_spark_instance(app_name='sparksession', master='local[*]', enable_checkpoint=False, checkpoint_dir=None):
-        if not app_name:
-            app_name = 'SparkSessionSingleton' + uuid4().hex
-            
+    def get_spark_instance(user_config=None):
+        """Init spark session based on default config and user provide config, 
+            user config if provided,
+            then should be just key-value for streaming settings.
+
+        Args:
+            user_config (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         if not SparkSessionSingleton._spark_instance:
-            SparkSessionSingleton._spark_instance = SparkSession \
-               .builder \
-               .appName(app_name) \
-               .master(master) \
-               .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
-               .getOrCreate()
-        
-        if enable_checkpoint and not checkpoint_dir:
-            # todo: checkpoint don't need to be in config, just in code for resistency, but should be in hdfs.
-            tmp_dir = tempfile.mkdtemp()
-            SparkSessionSingleton._spark_instance.option("checkpointLocation", tmp_dir)
+            # based on default config file to init spark session, here could also do some overwrite from the user provide config.
+            builder =  SparkSession \
+                .builder \
+                       
+            # first based on the default config, read it
+            default_config = load_config('spark_streaming_config.json')
+
+            for stream_key, value in default_config.items():
+                print("Set config for : {}".format(stream_key))
+                for k, v in value.items():
+                    builder = builder.config(k, v)
+                
+            if user_config:
+                app_name = user_config.get('app_name', None)
+                # where to run the spark
+                master = user_config.get('master', 'local[*]')
+                for k, v in user_config.items():
+                    builder = builder.config(k, v)
+            else:
+                app_name = 'SparkSessionSingleton' + uuid4().hex  
+                master =   'local[*]'
+                       
+            # TODO: here for the jars could be provided by user.
+            SparkSessionSingleton._spark_instance = builder.appName(app_name) \
+                .master(master) \
+                .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+                .getOrCreate()
+               
         return SparkSessionSingleton._spark_instance
     
     @staticmethod
@@ -73,8 +98,9 @@ def convert_str_to_bool(obj):
     return obj
 
 
-def load_config(file_name):
-    config_path = os.path.join(os.path.dirname(__file__), file_name)
+def load_config(file_name, config_folder='config'):
+    base_path = os.path.dirname(__file__)
+    config_path = os.path.join(base_path, config_folder, file_name)
     
     with open(config_path, 'r') as file:
         config = json.load(file)
@@ -115,7 +141,4 @@ def check_config_transform(config):
     
 
 if __name__ == '__main__':
-    # spark = SparkSessionSingleton.get_instance()
-    config = load_config('sample_transform.json')
-    print(config)
-    check_config_transform(config)
+    spark = get_spark_session()

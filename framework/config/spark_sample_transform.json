@@ -1,12 +1,15 @@
 {
     "appName": "MySparkStreamingApp",
     "batchInterval": 5,
-    "input": {
+    "source": {
         "type": "kafka",
-        "kafkaParams": {
-            "metadata.broker.list": "localhost:9092"
-        },
-        "topic": "input_topic"
+        "read_config": {
+            "bootstrap_servers": "localhost:9092",
+            "input_topic": "test",
+            "group_id": "MySparkStreamingApp",
+            "key_deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
+            "value_deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
+        }
     },
     "transformations": [
         {
@@ -50,7 +53,7 @@
             }
         }
     ],
-    "output": {
+    "sink": {
         "type": "write_to_kafka",
         "params":{
             "bootstrapServers": "localhost:9092",
