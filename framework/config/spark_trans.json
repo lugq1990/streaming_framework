@@ -1,6 +1,12 @@
 {
     "appName": "MySparkStreamingApp",
     "batchInterval": 5,
+    "application_config": {
+        "spark.master":"local[2]",
+        "spark.app.name":"MySparkStreamingApp",
+        "spark.streaming.interval":500,
+        "spark.streaming.stopGracefullyOnShutdown":true
+    },
     "source": {
         "type": "kafka",
         "read_config": {

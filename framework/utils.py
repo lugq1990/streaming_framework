@@ -133,22 +133,29 @@ class SparkSessionSingleton(object):
         if not SparkSessionSingleton._spark_instance:
             # based on default config file to init spark session, here could also do some overwrite from the user provide config.
             builder =  SparkSession \
-                .builder \
+                .builder 
                        
             # first based on the default config, read it
-            default_config = load_config('spark_streaming_config.json')
+            default_config = load_config('spark_config.json', config_folder='config/framework_config')
 
             for stream_key, value in default_config.items():
                 print("Set config for : {}".format(stream_key))
                 for k, v in value.items():
                     builder = builder.config(k, v)
-                
+               
+            # HERE means that user could overwrite some predefined config, 
+            # todo: but should check first that some of them are supported 
             if user_config:
                 app_name = user_config.get('app_name', None)
-                # where to run the spark
-                master = user_config.get('master', 'local[*]')
-                for k, v in user_config.items():
-                    builder = builder.config(k, v)
+                app_config = user_config.get('app_config')
+                # user provide app config that to setup the cluster running status.
+                if app_config:
+                    for k, v in app_config.items():
+                        print("Set config for: {}".format(stream_key))
+                        builder = builder.config(k, v)
+                else:
+                    print('No app config provided')
+                    master =  'local[*]'
             else:
                 app_name = 'SparkSessionSingleton' + uuid4().hex  
                 master =   'local[*]'
