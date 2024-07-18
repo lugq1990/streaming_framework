@@ -31,5 +31,14 @@
 
   # read for write topic
   bin/kafka-console-consumer.sh --topic transaction_output --from-beginning --bootstrap-server localhost:9092
+
+
+  # clean topic
+  bin/kafka-topics.sh --delete --topic test --bootstrap-server localhost:9092
+  bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 4 --topic test
+
+  # for output topic
+bin/kafka-topics.sh --create --topic testout --bootstrap-server localhost:9092
+
   ```
 

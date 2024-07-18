@@ -6,13 +6,14 @@ import json
 import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, expr, from_json, to_timestamp
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, TimestampType, IntegerType, BooleanType
-from utils import load_config, get_spark_session
+from pyspark.sql.types import *
+from utils import *
 import tempfile
 from abc import ABC
 from kafka import KafkaConsumer
 import pandas as pd
 import json
+
 
 
 
@@ -65,7 +66,7 @@ def flat_map_values_function(params):
     return func
 
 
-class SparkStreamingProcessor(DataTransformation):
+class DataTransformFactory(DataTransformation):
     def __init__(self, config):
         self.config = config
 
@@ -187,7 +188,7 @@ class SparkStreamingProcessor(DataTransformation):
     def _foreachRDD(self, dstream, params):
         dstream.foreachRDD(lambda rdd: eval(params['function']))
 
-    def apply_transformations(self, dstream):
+    def transform(self, dstream):
         """Core process logic here, get the streaming df, apply the transformations and return the result,
         currently is sequence of operations, should support with DAG.
         
@@ -200,7 +201,6 @@ class SparkStreamingProcessor(DataTransformation):
             ValueError: _description_
         """
         transformations = self.config['transformations']
-        output_config = self.config['output']
 
         for transformation in transformations:
             trans_type = transformation['type']
@@ -210,7 +210,6 @@ class SparkStreamingProcessor(DataTransformation):
             else:
                 raise ValueError(f"Unsupported transformation type: {trans_type}")
 
-        # dstream = DataSinkFactory().sink(df=dstream, params=output_config)
         return dstream
     
     
@@ -244,24 +243,20 @@ class DataSourceFactory(DataSource):
         
         # first infer schema, change from pyspark to pykafka to infer schema
         # schema = _infer_df_schema_for_kafka(df=df, spark=self.spark)
-        schema = DataUtil._infer_kafka_data_schema(bootstrap_servers=bootstrap_servers, input_topic=input_topic, return_engine='spark')
+        schema = DataUtil._get_spark_schema(bootstrap_servers=bootstrap_servers, input_topic=input_topic)
         print('-'* 100)
-        print("Get schema: ", schema)
+        print("Read schema:\n")
+        print(schema)
         
-        df = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+        df = df.selectExpr("CAST(value AS STRING)")
     
         # code here should be fine, but from the data gen should change.
         df = df.select(from_json(col("value"), schema).alias("data")).select("data.*")
-        df = df.withColumn("timestamp", to_timestamp(col("timestamp"), "yyyy-MM-dd HH:mm:ss"))
+        # df = df.withColumn("timestamp", to_timestamp(col("timestamp"), "yyyy-MM-dd HH:mm:ss"))
         
         df.printSchema()  
-        query = df.writeStream \
-            .outputMode("append") \
-            .format("console") \
-            .option("truncate", "false")  \
-            .start()
-        query.awaitTermination()
-        return query
+
+        return df
       
             
     def read_file(self):
@@ -309,26 +304,31 @@ class DataSinkFactory(DataSink):
     #TODO: currently is only for spark, for flink should be similar
     def __init__(self, config):
         self.config = config['sink']
+        self.sink_config = self.config['sink_config']
         self.sink_factary = {
-            'sink_to_console': self.sink_to_console,
-            'sink_to_file': self.sink_to_file,
-            'sink_to_kafka': self.sink_to_kafka,
+            'console': self.sink_to_console,
+            'file': self.sink_to_file,
+            'kafka': self.sink_to_kafka,
         }
         
     def sink_to_console(self, df): 
-        mode = self.config.get('mode', 'append')
-        return df.writeStream \
+        mode = self.sink_config.get('mode', 'append')
+        query = df.writeStream \
             .outputMode(mode) \
             .format("console") \
             .start()
+            
+        query.awaitTermination()
+    
     
     def sink_to_file(self, df):
         """Support both local file and hdfs"""
-        file_path = self.config['file_path']
-        file_type = self.config.get('file_type', 'csv')
-        infer_schema = self.config.get('infer_schema', 'true')
+        file_path = self.sink_config['file_path']
+        file_type = self.sink_config.get('file_type', 'csv')
+        infer_schema = self.sink_config.get('infer_schema', 'true')
         
-        return df.write.format(file_type).option("header", infer_schema).save(file_path)
+        query = df.write.format(file_type).option("header", infer_schema).save(file_path)
+        query.awaitTermination()
 
 
     def sink_to_kafka(self, df):
@@ -343,16 +343,13 @@ class DataSinkFactory(DataSink):
         Returns:
             _type_: _description_
         """
-        selected_cols = self.config.get('selected_cols', None)
-        key_col = self.config.get('key_col')
-        default_split_key = self.config.get('default_split_key', ',')
+        selected_cols = self.sink_config.get('selected_cols', None)
+        key_col = self.sink_config.get('key_col')
+        default_split_key = self.sink_config.get('default_split_key', ',')
         
-        bootstrap_servers = self.config['bootstrap_servers']
-        topic = self.config['topic']
+        bootstrap_servers = self.sink_config['bootstrap_servers']
+        topic = self.sink_config['sink_topic']
 
-        
-        if not key_col:
-            raise ValueError("write to kafka must provide the key_col!")
         
         if selected_cols and not isinstance(selected_cols, list) and isinstance(selected_cols, str):
             # try to convert to list
@@ -363,19 +360,20 @@ class DataSinkFactory(DataSink):
             selected_cols = df.columns
             # selected_cols = [f'CAST({col} AS STRING)' for col in cols]
        
-        # convert to key value 
+        # todo: here should be converted to func.
         value_expr = to_json(struct([col(c) for c in selected_cols])).alias("value")
-        selected_df = df.select(value_expr, col(key_col).cast("string").alias("key"))
+        selected_df = df.select(value_expr)
         # kafka_df = df.select(col("amount").cast("string").alias("value"), col("transaction_id").cast("string").alias("key"))
         print('value_expr: ', value_expr)
         
-        return selected_df \
+        query = selected_df \
             .writeStream \
             .format("kafka") \
             .option("kafka.bootstrap.servers", bootstrap_servers) \
             .option("topic", topic) \
             .option("checkpointLocation", tempfile.mkdtemp()) \
             .start()
+        query.awaitTermination()
             
     def sink(self, df):
         sink_type = self.config['sink_type']
@@ -384,105 +382,8 @@ class DataSinkFactory(DataSink):
         if sink_type not in self.sink_factary:
             raise Exception(f'Sink type {sink_type} is not supported')
         
-        return self.sink_factary[sink_type](df, sink_params)
+        return self.sink_factary[sink_type](df)
             
-    
-def _infer_df_schema_for_kafka(df, spark, is_kafka=True):
-    """ this should be called only when the read the kafka data, otherwise will infer full data schema
-
-    Args:
-        df (_type_): _description_
-        spark (_type_): _description_
-        is_kafka (bool, optional): _description_. Defaults to True.
-
-    Returns:
-        _type_: _description_
-    """
-    # todo: here need to change, with error: Queries with streaming sources must be executed with writeStream.start();
-    if is_kafka:
-        sample_json = df.selectExpr("CAST(value AS STRING)").take(1)[0][0]
-    else:
-        # if ono need to cast the data type to string
-        sample_json = df.take(1)[0][0]
-        
-    schema = spark.read.format(spark.sparkContext.param([sample_json])) \
-         .schema()
-    return schema
-    
-
-class DataUtil:
-    def __init__(self) -> None:
-        pass
-    
-    @staticmethod
-    def _get_one_kafka_record(topic_name, bootstrap_servers, group_id=None):
-        if not group_id:
-            group_id = 'read_one_record'
-            
-        consumer = KafkaConsumer(
-            topic_name,
-            bootstrap_servers=bootstrap_servers,
-            group_id=group_id,
-            auto_offset_reset='earliest', 
-            enable_auto_commit=False )
-        try:
-            for i, c in enumerate(consumer):
-                if c is not None:
-                    return c.value.decode('utf-8')
-                if i == 10:
-                    # not sure here needed?
-                    break
-            print("Not get")
-        finally:
-            consumer.close()
-
-    @staticmethod
-    def _infer_kafka_data_schema(input_topic, bootstrap_servers, group_id=None, return_engine='flink'):
-        # todo: for spark and pyflink schema is different, change it.
-        kafka_record = DataUtil._get_one_kafka_record(input_topic, bootstrap_servers, group_id=group_id)
-        if not kafka_record:
-            print("Couldn't get one record from kafka topic: {}".format(input_topic))
-            return None
-
-        # otherwise try to get the data
-        record_json = json.loads(json.loads(kafka_record))
-        key = record_json['key']
-        value_json = json.loads(record_json['value'])
-        df = pd.json_normalize(value_json)
-        
-        if return_engine == 'flink':
-            schema = {}
-            for col, dtype in zip(df.columns, df.dtypes):
-                if dtype == 'int64':
-                    schema[col] = "INT"
-                elif dtype == 'float64':
-                    schema[col] = "DOUBLE"
-                elif dtype == 'bool':
-                    schema[col] = "BOOLEAN"
-                else:
-                    schema[col] = "STRING"
-            return schema
-        else:
-            # convert to structure type for spark
-            schema = {}
-            for col, dtype in zip(df.columns, df.dtypes):
-                if dtype == 'int64':
-                    schema[col] = IntegerType()
-                elif dtype == 'float64':
-                    schema[col] = FloatType()
-                elif dtype == 'bool':
-                    schema[col] = BooleanType()
-                else:
-                    schema[col] = StringType()
-                    
-            field_list = []
-            for c, t in schema.items():
-                field = StructField(c, t, True)
-                field_list.append(field)
-            schema = StructType(field_list) 
-            return schema
-        
-        
 
 if __name__ == '__main__':
     # Example usage:
@@ -494,54 +395,14 @@ if __name__ == '__main__':
     print('*' * 100)
     
     df = DataSourceFactory(config=config).read()
+    df = DataTransformFactory(config).transform(df)
+    df = DataSinkFactory(config).sink(df)
     
-    # dump
-    # df.writeStream \
-    #     .outputMode("complete") \
+    # query = df.writeStream \
+    #     .outputMode("append") \
     #     .format("console") \
+    #     .option("truncate", "false")  \
     #     .start()
+    # query.awaitTermination()
     
-    # df.awaitTermination()
-
-    
-    
-
-    # # Initialize the Spark session
-    # spark = get_spark_session()
-    # # Set log level to WARN to reduce verbosity
-    # spark.sparkContext.setLogLevel("WARN")
-    
-        
-    # # Read the Kafka stream
-    # kafka_df = spark.readStream \
-    #     .format("kafka") \
-    #     .option("kafka.bootstrap.servers", "localhost:9092") \
-    #     .option("subscribe", "transaction") \
-    #     .option("startingOffsets", "earliest") \
-    #     .load()
-
-    # # Select the value column and cast it to string
-    # transactions_df = kafka_df.selectExpr("CAST(value AS STRING)")
-
-
-
-    # # Parse the JSON data and apply the schema
-    # # here let the spark to infer the schema dymanically 
-
-    # schema = _infer_df_schema_for_kafka(df=transactions_df, spark=spark)
-         
-    # parsed_df = transactions_df \
-    #     .select(from_json(col("value"), schema).alias("data")) \
-    #     .select("data.*")
-
-    # # Convert the timestamp string to TimestampType
-    # parsed_df = parsed_df.withColumn("timestamp", to_timestamp(col("timestamp"), "yyyy-MM-dd HH:mm:ss"))
-
-
-    # df = DataSource.read()
-
-    # processor = SparkStreamingProcessor(config)
-    # dstream = processor.apply_transformations(parsed_df)
-
-    # dstream.awaitTermination()
     

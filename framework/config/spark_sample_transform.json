@@ -15,34 +15,35 @@
         {
             "type": "filter",
             "params": {
-                "column": "amount",
-                "condition": "> 100"
+                "column": "number",
+                "condition": "> 10"
             }
         },
         {
             "type": "select",
             "params": {
                 "columns": [
-                    "transaction_id",
-                    "amount",
-                    "customer_id",
-                    "timestamp"
+                    "id",
+                    "name",
+                    "country",
+                    "job",
+                    "timestamp",
+                    "number"
                 ]
             }
         },
         {
             "type": "withColumn",
             "params": {
-                "column": "amount_usd",
-                "expression": "amount * 0.15"
+                "column": "number_new",
+                "expression": "number * 0.15"
             }
         },
         {
             "type": "drop",
             "params": {
                 "columns": [
-                    "description",
-                    "account_number"
+                    "job"
                 ]
             }
         },
@@ -54,11 +55,10 @@
         }
     ],
     "sink": {
-        "type": "write_to_kafka",
-        "params":{
-            "bootstrapServers": "localhost:9092",
-            "topic": "transaction_output" ,
-            "key_col": "transaction_id"  
+        "sink_type": "console",
+        "sink_config":{
+            "bootstrap_servers": "localhost:9092",
+            "sink_topic": "testout"
         }
     }
 }

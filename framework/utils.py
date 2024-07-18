@@ -5,8 +5,106 @@ from pyspark.sql import SparkSession
 from pyspark.streaming import StreamingContext
 import os
 import tempfile
+from kafka import KafkaConsumer
+from pyspark.sql.types import *
+import pandas as pd
 
+class DataUtil:
+    def __init__(self) -> None:
+        pass
+    
+    @staticmethod
+    def _get_one_kafka_record(topic_name, bootstrap_servers, group_id=None):
+        if not group_id:
+            group_id = 'read_one_record'
+            
+        consumer = KafkaConsumer(
+            topic_name,
+            bootstrap_servers=bootstrap_servers,
+            group_id=group_id,
+            auto_offset_reset='earliest', 
+            enable_auto_commit=False )
+        try:
+            for i, c in enumerate(consumer):
+                if c is not None:
+                    # this is real string in one record
+                    return c.value.decode('utf-8')
+                if i == 10:
+                    # not sure here needed?
+                    break
+            print("Not get")
+        finally:
+            consumer.close()
+            
+    @staticmethod       
+    def _get_value_schema(input_topic, bootstrap_servers, group_id=None):
+        kafka_record = DataUtil._get_one_kafka_record(input_topic, bootstrap_servers, group_id=group_id)
+        # based on record to get value, and it's schema
+        record_json = json.loads(kafka_record)
+        if 'value' not in record_json:
+            schema_list = list(record_json.keys())
+        else:
+            value_json = record_json['value']
+            schema_list = list(value_json.keys())
+        return schema_list
+    
+    @staticmethod
+    def _get_spark_schema(input_topic, bootstrap_servers):
+        schema_list  = DataUtil._get_value_schema(input_topic, bootstrap_servers)
+        spark_schema = StructType([StructField(field_name, StringType(), True) for field_name in schema_list])
+        return spark_schema
+    
 
+    @staticmethod
+    def _infer_kafka_data_schema(input_topic, bootstrap_servers, group_id=None, return_engine='flink'):
+        # todo: for spark and pyflink schema is different, change it.
+        kafka_record = DataUtil._get_one_kafka_record(input_topic, bootstrap_servers, group_id=group_id)
+        if not kafka_record:
+            print("Couldn't get one record from kafka topic: {}".format(input_topic))
+            return None
+
+        # based on record to get value, and it's schema
+        record_json = json.loads(kafka_record)
+        value_json = record_json['value']
+        
+        df = pd.json_normalize(value_json)
+        
+        if return_engine == 'flink':
+            schema = {}
+            for col, dtype in zip(df.columns, df.dtypes):
+                if dtype == 'int64':
+                    schema[col] = "INT"
+                elif dtype == 'float64':
+                    schema[col] = "DOUBLE"
+                elif dtype == 'bool':
+                    schema[col] = "BOOLEAN"
+                elif pd.api.types.is_datetime64_any_dtype(dtype):
+                    schema[col] = "TIMESTAMP"
+                else:
+                    schema[col] = "STRING"
+            return schema
+        else:
+            # convert to structure type for spark
+            schema = {}
+            for col, dtype in zip(df.columns, df.dtypes):
+                if dtype == 'int64':
+                    schema[col] = IntegerType()
+                elif dtype == 'float64':
+                    schema[col] = DoubleType()
+                elif dtype == 'bool':
+                    schema[col] = BooleanType()
+                elif pd.api.types.is_datetime64_any_dtype(dtype):
+                    schema[col] = TimestampType()
+                else:
+                    schema[col] = StringType()
+                    
+            field_list = []
+            for c, t in schema.items():
+                field = StructField(c, t, True)
+                field_list.append(field)
+            schema = StructType(field_list) 
+            return schema
+        
 
 def get_spark_session():
     return SparkSessionSingleton.get_spark_instance()

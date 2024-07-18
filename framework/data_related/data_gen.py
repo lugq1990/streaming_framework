@@ -1,54 +1,66 @@
-"""This is used to generate some sample transaction data and send the data to kafka"""
-import json
-import random
-from datetime import datetime
-from faker import Faker
 from kafka import KafkaProducer
+from faker import Faker
+import json
+import time
+import random
 
-# Initialize Faker
-fake = Faker()
+# Kafka configuration
+bootstrap_servers = ['localhost:9092']  # Replace with your Kafka broker address
+topic_name = 'test'  # Your Kafka topic name
 
-# Kafka Producer Configuration
+# Create Kafka producer
 producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'],  # Change this to your Kafka broker address
+    bootstrap_servers=bootstrap_servers,
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-def generate_transaction():
-    """Generate a single bank transaction record."""
-    transaction = {
-        'transaction_id': fake.uuid4(),
-        'amount': round(random.uniform(10.0, 10000.0), 2),
-        'customer_id': fake.uuid4(),
-        'transaction_type': random.choice(['debit', 'credit']),
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'description': fake.sentence(nb_words=5),
-        'account_number': fake.bban(),
-        'merchant': fake.company()
+# Create Faker instance
+fake = Faker()
+
+def generate_fake_record():
+    """Generate a fake record."""
+    key = fake.uuid4()
+    value = {
+        "id": key,
+        "name": fake.name(),
+        "email": fake.email(),
+        "date": fake.date_time_this_year().isoformat(),
+        "country": fake.country(),
+        "company": fake.company(),
+        "job": fake.job(),
+        "phone": fake.phone_number(),
+        "sentence": fake.sentence(),
+        "number": random.randint(1, 100),
+        "timestamp": fake.unix_time()
     }
-    return transaction
+    record = {"key": key, "value": value}
+    return value
 
 
-def send_transactions_to_kafka(topic, num_transactions):
-    """Generate and send multiple transactions to a Kafka topic."""
-    # todo: here send data isn't correctly as expected
-    for _ in range(num_transactions):
-        transaction = generate_transaction()
-        # here should with key, value into binary
-        record = {'key': transaction['transaction_id'], 
-                  'value': json.dumps(transaction)}
-        record_str = json.dumps(record)
-        producer.send(topic, record_str)
-        print(f"Sent transaction: {record_str}")
+def send_fake_records(num_records, delay=1):
+    """Send fake records to Kafka topic."""
+    for _ in range(num_records):
+        fake_record = generate_fake_record()
+        
+        # Send the record to Kafka
+        future = producer.send(topic_name, value=fake_record)
+        
+        # Block for 'synchronous' sends
+        try:
+            record_metadata = future.get(timeout=10)
+            print(f"Sent record to {record_metadata.topic}:{record_metadata.partition}:{record_metadata.offset}")
+        except Exception as e:
+            print(f"Error sending record: {e}")
+        
+        # time.sleep(delay)  # Wait for specified delay
 
-    # Block until all messages are sent
-    producer.flush()
-
-
+# Main execution
 if __name__ == "__main__":
-    # Configuration
-    kafka_topic = 'test'
-    number_of_transactions = 10  # Number of transactions to generate
-
-    # Generate and send transactions
-    send_transactions_to_kafka(kafka_topic, number_of_transactions)
+    num_records = 100  # Number of fake records to generate and send
+    delay_between_sends = 1  # Delay in seconds between each send
+    
+    print(f"Sending {num_records} fake records to topic '{topic_name}'...")
+    send_fake_records(num_records, delay_between_sends)
+    
+    print("Finished sending fake records.")
+    producer.close()
