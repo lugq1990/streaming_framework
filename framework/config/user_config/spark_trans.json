@@ -1,5 +1,5 @@
 {
-    "appName": "MySparkStreamingApp",
+    "app_name": "MySparkStreamingApp",
     "batchInterval": 5,
     "application_config": {
         "spark.master":"local[2]",
@@ -17,6 +17,16 @@
             "value_deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
         }
     },
+    "queries":[
+        {
+            "table_name": "t1",
+            "query": "select * from t1"
+        },
+        {
+            "table_name": "t2",
+            "query": "select country, id  from t2 limit 10"
+        } 
+    ],
     "transformations": [
         {
             "type": "filter",

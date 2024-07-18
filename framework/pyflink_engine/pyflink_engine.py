@@ -195,57 +195,6 @@ class FlinkStreamingApp:
         self.env.execute(self.config['appName'])
 
 
-class DataUtil:
-    def __init__(self) -> None:
-        pass
-    
-    @staticmethod
-    def _get_one_kafka_record(topic_name, bootstrap_servers, group_id=None):
-        if not group_id:
-            group_id = 'read_one_record'
-            
-        consumer = KafkaConsumer(
-            topic_name,
-            bootstrap_servers=bootstrap_servers,
-            group_id=group_id,
-            auto_offset_reset='earliest', 
-            enable_auto_commit=False )
-        try:
-            # here what if don't get records, should solve this.
-            for i, c in enumerate(consumer):
-                if c is not None:
-                    print(c)
-                    return c.value.decode('utf-8')
-                if i == 10:
-                    # not sure here needed?
-                    break
-            print("Not get")
-        finally:
-            consumer.close()
-
-    @staticmethod
-    def _infer_kafka_data_schema(topic_name, bootstrap_servers, group_id=None):
-        kafka_record = DataUtil._get_one_kafka_record(topic_name, bootstrap_servers, group_id=group_id)
-        if not kafka_record:
-            print("Couldn't get one record from kafka topic: {}".format(topic_name))
-            return None
-
-        # otherwise try to get the data
-        df = pd.json_normalize(json.loads(kafka_record))
-        schema = {}
-        for col, dtype in zip(df.columns, df.dtypes):
-            if dtype == 'int64':
-                schema[col] = DataTypes.INT()
-            elif dtype == 'float64':
-                schema[col] = DataTypes.DOUBLE()
-            elif dtype == 'bool':
-                schema[col] = DataTypes.BOOLEAN()
-            else:
-                schema[col] = DataTypes.STRING()
-        return schema
-        
-        
-
 
 # Example usage
 if __name__ == "__main__":

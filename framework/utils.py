@@ -9,12 +9,16 @@ from kafka import KafkaConsumer
 from pyspark.sql.types import *
 import pandas as pd
 
+
+base_config_path = os.path.join(os.path.dirname(__file__), 'config')
+
+
 class DataUtil:
     def __init__(self) -> None:
         pass
     
     @staticmethod
-    def _get_one_kafka_record(topic_name, bootstrap_servers, group_id=None):
+    def _get_one_kafka_record(topic_name, bootstrap_servers, group_id=None, auto_offset_reset='earliest'):
         if not group_id:
             group_id = 'read_one_record'
             
@@ -22,8 +26,9 @@ class DataUtil:
             topic_name,
             bootstrap_servers=bootstrap_servers,
             group_id=group_id,
-            auto_offset_reset='earliest', 
+            auto_offset_reset=auto_offset_reset, 
             enable_auto_commit=False )
+        # todo: should change for better solution.
         try:
             for i, c in enumerate(consumer):
                 if c is not None:
@@ -56,17 +61,22 @@ class DataUtil:
     
 
     @staticmethod
-    def _infer_kafka_data_schema(input_topic, bootstrap_servers, group_id=None, return_engine='flink'):
+    def _infer_kafka_data_schema(input_topic, bootstrap_servers, group_id=None, return_engine='flink', auto_offset_reset='earliest'):
         # todo: for spark and pyflink schema is different, change it.
-        kafka_record = DataUtil._get_one_kafka_record(input_topic, bootstrap_servers, group_id=group_id)
+        kafka_record = DataUtil._get_one_kafka_record(input_topic, bootstrap_servers, group_id=group_id, auto_offset_reset=auto_offset_reset)
         if not kafka_record:
             print("Couldn't get one record from kafka topic: {}".format(input_topic))
             return None
+        else:
+            print("Good: get one record from kafka, now to infer schema.")
 
         # based on record to get value, and it's schema
         record_json = json.loads(kafka_record)
-        value_json = record_json['value']
-        
+        # sometimes the record will contain kv as value is the key for json.
+        if 'value' in record_json:
+            value_json = record_json['value']
+        else:
+            value_json = record_json
         df = pd.json_normalize(value_json)
         
         if return_engine == 'flink':
@@ -106,8 +116,8 @@ class DataUtil:
             return schema
         
 
-def get_spark_session():
-    return SparkSessionSingleton.get_spark_instance()
+def get_spark_session(config):
+    return SparkSessionSingleton.get_spark_instance(user_config=config)
 
 
 # def get_streaming_context(batchDuration=10):
@@ -119,13 +129,29 @@ class SparkSessionSingleton(object):
     _streaming_instance = None
     
     @staticmethod
-    def get_spark_instance(user_config=None):
+    def _get_checkpoint_path(app_name):
+        spark_config_key = "spark.streaming.checkpointLocation"
+        spark_config = load_config('spark_config')
+        # hdfs or local path
+        default_checkpoiont_path = spark_config.get(spark_config_key)
+        if not default_checkpoiont_path:
+            default_checkpoiont_path = '/tmp/checkpoint'
+            os.makedirs(default_checkpoiont_path, exist_ok=True)
+            
+        print("checkpoint path: {}".format(default_checkpoiont_path))
+        print('&' * 100)
+        return os.path.join(default_checkpoiont_path, app_name)
+    
+    @staticmethod
+    def get_spark_instance(user_config):
         """Init spark session based on default config and user provide config, 
             user config if provided,
             then should be just key-value for streaming settings.
 
         Args:
-            user_config (_type_, optional): _description_. Defaults to None.
+            user_config (_type_, optional): _description_. Should be provided,
+            as for each application should have it's own checkpoint folder path, if user need to re-start app, 
+            then should re-load checkpoint folder and re-init spark session.
 
         Returns:
             _type_: _description_
@@ -136,7 +162,7 @@ class SparkSessionSingleton(object):
                 .builder 
                        
             # first based on the default config, read it
-            default_config = load_config('spark_config.json', config_folder='config/framework_config')
+            default_config = load_config('spark_config.json')
 
             for stream_key, value in default_config.items():
                 print("Set config for : {}".format(stream_key))
@@ -144,9 +170,9 @@ class SparkSessionSingleton(object):
                     builder = builder.config(k, v)
                
             # HERE means that user could overwrite some predefined config, 
-            # todo: but should check first that some of them are supported 
+            # todo: but should check first that only some of them are supported 
             if user_config:
-                app_name = user_config.get('app_name', None)
+                app_name = user_config.get('app_name', 'Sparkstreaming')
                 app_config = user_config.get('app_config')
                 # user provide app config that to setup the cluster running status.
                 if app_config:
@@ -157,13 +183,17 @@ class SparkSessionSingleton(object):
                     print('No app config provided')
                     master =  'local[*]'
             else:
-                app_name = 'SparkSessionSingleton' + uuid4().hex  
+                # user should provide a app_name config, otherwise how to create checkpoint?
+                app_name = 'SparkSessionSingleton'
                 master =   'local[*]'
                        
             # TODO: here for the jars could be provided by user.
+            # enable checkpoint, if not exist, then just create, or will re-load from checkpoint folder.
+            checkpoint_dir = SparkSessionSingleton._get_checkpoint_path(app_name=app_name)
             SparkSessionSingleton._spark_instance = builder.appName(app_name) \
                 .master(master) \
                 .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+                .config("spark.sql.streaming.checkpointLocation", checkpoint_dir) \
                 .getOrCreate()
                
         return SparkSessionSingleton._spark_instance
@@ -203,12 +233,21 @@ def convert_str_to_bool(obj):
     return obj
 
 
-def load_config(file_name, config_folder='config'):
-    base_path = os.path.dirname(__file__)
-    config_path = os.path.join(base_path, config_folder, file_name)
+def load_config(file_name, config_folder='framework_config'):
+    if not file_name.endswith('.json'):
+        file_name = f'{file_name}.json'
+    config_path = os.path.join(base_config_path, config_folder, file_name)
     
     with open(config_path, 'r') as file:
         config = json.load(file)
+    return convert_str_to_bool(config)
+
+
+def load_user_config(file_name, config_folder='user_config'):
+    config_path = os.path.join(base_config_path, config_folder, file_name)
+    
+    with open(config_path, 'r') as file:
+        config  = json.load(file)
     return convert_str_to_bool(config)
 
 

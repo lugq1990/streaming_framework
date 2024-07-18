@@ -18,8 +18,9 @@ import json
 
 
 class DataSink(ABC):
-    def __init__(self, config) -> None:
+    def __init__(self, config, spark) -> None:
         self.config = config
+        self.spark = spark
         super().__init__()
         
     def sink(self, df, params):
@@ -27,8 +28,9 @@ class DataSink(ABC):
     
     
 class DataSource(ABC):
-    def __init__(self, config) -> None:
+    def __init__(self, config, spark) -> None:
         self.config = config
+        self.spark = spark
         super().__init__()
         
     def read(self, config):
@@ -36,11 +38,15 @@ class DataSource(ABC):
 
 
 class DataTransformation(ABC):
-    def __init__(self, config) -> None:
+    def __init__(self, config, spark) -> None:
         self.config = config
+        self.spark = spark
         super().__init__()
         
-    def transfapply_transformationsorm(self, df):
+    def transform(self, df):
+        pass
+    
+    def execute_queries(self, df):
         pass
     
 
@@ -66,8 +72,8 @@ def flat_map_values_function(params):
     return func
 
 
-class DataTransformFactory(DataTransformation):
-    def __init__(self, config):
+class SparkDataTransformFactory(DataTransformation):
+    def __init__(self, config, spark):
         self.config = config
 
         # Map transformation types to methods
@@ -94,8 +100,8 @@ class DataTransformFactory(DataTransformation):
             "cogroup": self._cogroup,
             "updateStateByKey": self._updateStateByKey
         }
-        
-        
+        self.spark = spark
+       
     def _limit(self, df, params):
         return df.limit(params['num'])
     
@@ -212,10 +218,28 @@ class DataTransformFactory(DataTransformation):
 
         return dstream
     
+    def execute_queries(self, df):
+        queries = self.config['queries']
+        # loop for each query, for the first, will be df register as temp table.
+        # for the following, will be df.registerTempTable(table_name)
+        # The first query should be triggered, then the rest could be queried.                    
+        print("[Spark SQL Started]")
+        for i, query in enumerate(queries):
+            table_name = query['table_name']
+            sql_query = query['query']
+            
+            self.spark.catalog.dropTempView(table_name)
+            df.createOrReplaceTempView(table_name)
+            df = spark.sql(sql_query)
+           
+        # last df will be returned
+        return df
+            
+            
     
 
 class DataSourceFactory(DataSource):
-    def __init__(self, config) -> None:
+    def __init__(self, config, spark) -> None:
         self.config = config['source']
         self.read_config = config['source']['read_config']
         
@@ -226,7 +250,7 @@ class DataSourceFactory(DataSource):
             'kafka': self.read_kafka,
         }
         
-        self.spark = get_spark_session()
+        self.spark = spark
          
     def read_kafka(self):
         bootstrap_servers = self.read_config['bootstrap_servers']
@@ -302,7 +326,7 @@ class DataSourceFactory(DataSource):
   
 class DataSinkFactory(DataSink):
     #TODO: currently is only for spark, for flink should be similar
-    def __init__(self, config):
+    def __init__(self, config, spark):
         self.config = config['sink']
         self.sink_config = self.config['sink_config']
         self.sink_factary = {
@@ -310,6 +334,7 @@ class DataSinkFactory(DataSink):
             'file': self.sink_to_file,
             'kafka': self.sink_to_kafka,
         }
+        self.spark = spark
         
     def sink_to_console(self, df): 
         mode = self.sink_config.get('mode', 'append')
@@ -377,7 +402,6 @@ class DataSinkFactory(DataSink):
             
     def sink(self, df):
         sink_type = self.config['sink_type']
-        sink_params = self.config.get('params', '')
         
         if sink_type not in self.sink_factary:
             raise Exception(f'Sink type {sink_type} is not supported')
@@ -389,14 +413,16 @@ if __name__ == '__main__':
     # Example usage:
     
     # config = load_config('transform_to_console.json')
-    config = load_config('spark_trans.json')
+    config = load_user_config('spark_trans.json')
     print('*' * 100)
     print(config)
     print('*' * 100)
     
-    df = DataSourceFactory(config=config).read()
-    df = DataTransformFactory(config).transform(df)
-    df = DataSinkFactory(config).sink(df)
+    spark = get_spark_session(config=config)
+    
+    df = DataSourceFactory(config=config, spark=spark).read()
+    df = SparkDataTransformFactory(config, spark=spark).execute_queries(df)
+    df = DataSinkFactory(config, spark=spark).sink(df)
     
     # query = df.writeStream \
     #     .outputMode("append") \
