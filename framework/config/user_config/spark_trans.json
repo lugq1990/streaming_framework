@@ -24,7 +24,7 @@
         },
         {
             "table_name": "t2",
-            "query": "select country, id  from t2 limit 10"
+            "query": "select country, id from t2 limit 10"
         } 
     ],
     "transformations": [

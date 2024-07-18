@@ -221,8 +221,7 @@ class SparkDataTransformFactory(DataTransformation):
     def execute_queries(self, df):
         queries = self.config['queries']
         # loop for each query, for the first, will be df register as temp table.
-        # for the following, will be df.registerTempTable(table_name)
-        # The first query should be triggered, then the rest could be queried.                    
+        # for the following, will be df.registerTempTable(table_name)            
         print("[Spark SQL Started]")
         for i, query in enumerate(queries):
             table_name = query['table_name']
@@ -235,8 +234,6 @@ class SparkDataTransformFactory(DataTransformation):
         # last df will be returned
         return df
             
-            
-    
 
 class DataSourceFactory(DataSource):
     def __init__(self, config, spark) -> None:

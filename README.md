@@ -57,21 +57,25 @@ For spark streaming is batched based, some of configs should be configed in app 
   - numExecutors
   - executorCores
   - driverMemory
-- deplay
+- deploy
   - master
   - deployMode
+- Spark HA
+  - WAL, write ahead log, for recovery
+  - checkpointDir that will be used for recovery, for each application will have it's own
+  - checkpointInterval, default is 1 mins, as batch_interval is 5s, so 5s * 10 = 50s, best practice is 5-10 batched to checkpoint
+  - enable grace stop to ensure data processed.
 
 ```json
 {
-    "appName": "MySparkStreamingApp",
+    "app_name": "MySparkStreamingApp",
     "batchInterval": 5,
-    "checkpointDirectory": "hdfs://path/to/checkpoint/dir",
-    "executorMemory": "2g",
-    "numExecutors": 4,
-    "executorCores": 2,
-    "driverMemory": "1g",
-    "master": "local[*]",
-    "deployMode": "client"
+    "application_config": {
+        "spark.master":"local[2]",
+        "spark.app.name":"MySparkStreamingApp",
+        "spark.streaming.interval":500,
+        "spark.streaming.stopGracefullyOnShutdown":true
+    }
 }
 ```
 

@@ -1,6 +1,6 @@
 {
     "streaming": {
-        "spark.streaming.checkpointInterval": "5 minutes",
+        "spark.streaming.checkpointInterval": "1 minutes",
         "spark.streaming.checkpointLocation": "hdfs://namenode:8020/user/spark/checkpoints",
         "spark.streaming.batchDuration": "10 seconds",
         "spark.streaming.gracefulShutdown.enabled": true,
