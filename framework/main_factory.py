@@ -3,6 +3,8 @@ from spark_core import SparkDataSourceFactory, SparkDataTransformFactory, SparkD
 from flink_core import FlinkDataSourceFactory, FlinkDataTransformFactory, FlinkDataSinkFactory
 from utils import get_spark_session, get_flink_t_env, load_user_config
 import os
+from argparse import ArgumentParser
+from datetime import datetime
 
 
 class StreamFramwork(ABC):
@@ -48,7 +50,16 @@ class SparkStreamFramework(StreamFramwork):
         
         
 if __name__ == "__main__":
-    config = load_user_config('spark_trans.json')
+    # For config should just be provided by user
+    parser = ArgumentParser()
     
-    framework = SparkStreamFramework(config)
+    parser.add_argument('--config_name', type=str, default='project_trans.json' ,help='The config file name.')
+    
+    args = parser.parse_args()
+    config_name = args.config_name
+    
+    config = load_user_config(config_name)
+    
+    # framework = SparkStreamFramework(config=config)
+    framework = FlinkStreamFramework(config=config)
     framework.run()

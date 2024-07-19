@@ -12,10 +12,10 @@ from uuid import uuid4
 from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env
 
 
-config = load_user_config('spark_trans.json')
-print('*' * 100)
-print("Get config: ", config)
-print('*' * 100)
+# config = load_user_config('spark_trans.json')
+# print('*' * 100)
+# print("Get config: ", config)
+# print('*' * 100)
 # source_config = config['source']['read_config']
 # input_topic = source_config['input_topic']
 # bootstrap_servers = source_config['bootstrap_servers']

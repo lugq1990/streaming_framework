@@ -466,7 +466,7 @@ if __name__ == '__main__':
     # Example usage:
     
     # config = load_config('transform_to_console.json')
-    config = load_user_config('spark_trans.json')
+    config = load_user_config('project_trans.json')
     print('*' * 100)
     print(config)
     print('*' * 100)
