@@ -8,6 +8,7 @@ import tempfile
 from kafka import KafkaConsumer
 from pyspark.sql.types import *
 import pandas as pd
+from pyflink.table.types import DataTypes as FlinkDataTypes 
 
 
 base_config_path = os.path.join(os.path.dirname(__file__), 'config')
@@ -317,6 +318,60 @@ def check_config_transform(config):
                     raise Exception(f"Transformer {tran_type} is not supported in Streaming")
     print("Config file checking pass!")
     
+    
+
+def convert_flink_table_data_type_to_sql_type(data_type):
+    """Convert flink table schmea to real string for query side that dynamic inference.
+
+    Args:
+        data_type (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    if data_type == 'VARCHAR':
+        return "STRING"  
+    else:
+        return data_type
+    if isinstance(data_type, FlinkDataTypes.CHAR):
+        return f"CHAR({data_type.length})"
+    elif isinstance(data_type, FlinkDataTypes.VARCHAR):
+        return "STRING"  
+    elif isinstance(data_type, FlinkDataTypes.BOOLEAN):
+        return "BOOLEAN"
+    elif isinstance(data_type, FlinkDataTypes.TINYINT):
+        return "TINYINT"
+    elif isinstance(data_type, FlinkDataTypes.SMALLINT):
+        return "SMALLINT"
+    elif isinstance(data_type, FlinkDataTypes.INT):
+        return "INT"
+    elif isinstance(data_type, FlinkDataTypes.BIGINT):
+        return "BIGINT"
+    elif isinstance(data_type, FlinkDataTypes.FLOAT):
+        return "FLOAT"
+    elif isinstance(data_type, FlinkDataTypes.DOUBLE):
+        return "DOUBLE"
+    elif isinstance(data_type, FlinkDataTypes.DECIMAL):
+        return f"DECIMAL({data_type.precision}, {data_type.scale})"
+    elif isinstance(data_type, FlinkDataTypes.DATE):
+        return "DATE"
+    elif isinstance(data_type, FlinkDataTypes.TIME):
+        return "TIME"
+    elif isinstance(data_type, FlinkDataTypes.TIMESTAMP):
+        return "TIMESTAMP"
+    elif isinstance(data_type, FlinkDataTypes.ARRAY):
+        element_type = convert_flink_table_data_type_to_sql_type(data_type.element_type)
+        return f"ARRAY<{element_type}>"
+    elif isinstance(data_type, FlinkDataTypes.MAP):
+        key_type = convert_flink_table_data_type_to_sql_type(data_type.key_type)
+        value_type = convert_flink_table_data_type_to_sql_type(data_type.value_type)
+        return f"MAP<{key_type}, {value_type}>"
+    elif isinstance(data_type, FlinkDataTypes.ROW):
+        field_types = [convert_flink_table_data_type_to_sql_type(ft) for ft in data_type.field_types]
+        return f"ROW<{', '.join(field_types)}>"
+    else:
+        return data_type
+
 
 if __name__ == '__main__':
     spark = get_spark_session()

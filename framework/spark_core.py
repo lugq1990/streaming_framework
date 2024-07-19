@@ -236,7 +236,7 @@ class SparkDataTransformFactory(DataTransformation):
         return df
             
 
-class DataSourceFactory(DataSource):
+class SparkDataSourceFactory(DataSource):
     def __init__(self, config, spark) -> None:
         self.config = config['source']
         self.read_config = config['source']['read_config']
@@ -324,7 +324,7 @@ class DataSourceFactory(DataSource):
   
 
                 
-class DataSinkFactory(DataSink):
+class SparkDataSinkFactory(DataSink):
     #TODO: currently is only for spark, for flink should be similar
     def __init__(self, config, spark):
         self.config = config['sink']
@@ -337,7 +337,7 @@ class DataSinkFactory(DataSink):
         # decide to use sink mode or infer it from query and transformations
         sink_mode = self.sink_config.get('mode')
         if not sink_mode:
-            sink_mode = DataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
+            sink_mode = SparkDataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
         self.sink_mode = sink_mode
         self.spark = spark
         
@@ -470,9 +470,9 @@ if __name__ == '__main__':
     
     spark = get_spark_session(config=config)
     
-    df = DataSourceFactory(config=config, spark=spark).read()
+    df = SparkDataSourceFactory(config=config, spark=spark).read()
     df = SparkDataTransformFactory(config, spark=spark).execute_queries(df)
-    df = DataSinkFactory(config, spark=spark).sink(df)
+    df = SparkDataSinkFactory(config, spark=spark).sink(df)
     
     # query = df.writeStream \
     #     .outputMode("append") \

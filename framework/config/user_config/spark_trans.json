@@ -67,9 +67,8 @@
         }
     ],
     "sink": {
-        "sink_type": "kafka",
+        "sink_type": "console",
         "sink_config":{
-            "mode": "complete",
             "bootstrap_servers": "localhost:9092",
             "sink_topic": "testout"
         }
