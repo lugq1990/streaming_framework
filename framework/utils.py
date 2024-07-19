@@ -9,9 +9,40 @@ from kafka import KafkaConsumer
 from pyspark.sql.types import *
 import pandas as pd
 from pyflink.table.types import DataTypes as FlinkDataTypes 
-
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.table import StreamTableEnvironment, EnvironmentSettings
 
 base_config_path = os.path.join(os.path.dirname(__file__), 'config')
+
+def add_pyflink_jar_files(t_env):
+    # Assuming the JARs are in a 'lib' folder in the current directory
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    jar_files = [
+        f"file://{current_dir}/lib/flink-sql-connector-kafka-3.0.1-1.18.jar",
+        f"file://{current_dir}/lib/kafka-clients-3.4.1.jar",
+        f"file://{current_dir}/lib/flink-json-1.18.0.jar"
+    ]
+    t_env.get_config().get_configuration().set_string(
+            "pipeline.jars", ';'.join(jar_files)
+        )
+    
+
+def get_flink_t_env():
+    """Flink config setting should happen here!
+
+    Returns:
+        _type_: _description_
+    """
+    env = StreamExecutionEnvironment.get_execution_environment()
+    env.set_parallelism(1)
+    settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
+    t_env = StreamTableEnvironment.create(env, environment_settings=settings)
+    add_pyflink_jar_files(t_env=t_env)
+    # kafka_connector_jar = "/Users/guangqianglu/Downloads/flink-connector-kafka-3.0.1-1.18.jar"
+    # t_env.get_config().get_configuration().set_string(
+    #     "pipeline.jars", f"file://{kafka_connector_jar}")
+    print(t_env.get_config().get_configuration().to_dict())
+    return t_env
 
 
 class DataUtil:
@@ -317,6 +348,7 @@ def check_config_transform(config):
                 if tran_type not in spark_streaming_supported_transformers:
                     raise Exception(f"Transformer {tran_type} is not supported in Streaming")
     print("Config file checking pass!")
+    
     
     
 

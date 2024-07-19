@@ -1,7 +1,6 @@
 import json
 import os
-from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import StreamTableEnvironment, EnvironmentSettings
+
 from pyflink.table.expressions import col
 from pyflink.table.udf import udf
 from pyflink.common.typeinfo import Types
@@ -10,7 +9,7 @@ from utils import load_user_config, DataUtil
 from abc import ABC
 from uuid import uuid4
 
-from utils import DataUtil, convert_flink_table_data_type_to_sql_type
+from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env
 
 
 config = load_user_config('spark_trans.json')
@@ -209,11 +208,11 @@ class FlinkDataSinkFactory(FlinkDataSink):
 
 
 class FlinkDataTransformFactory(FlinkDataTransformation):
-    def __init__(self, config, t_env) -> None:
+    def __init__(self, config, t_env, table) -> None:
         super().__init__(config, t_env)
-        
-        
-    def execute_queries(self, table):
+        self.table = table
+         
+    def execute_queries(self):
         """loop for each query and register as temp table, and do query, return a table
 
         Args:
@@ -222,9 +221,10 @@ class FlinkDataTransformFactory(FlinkDataTransformation):
         Returns:
             _type_: _description_
         """
+        table = self.table
         queries = self.config.get('queries', [])
         for query_config in queries:
-            table_name = query_config["table"]
+            table_name = query_config["table_name"]
             query = query_config["query"]
             
             # create temp view and do the query
@@ -233,7 +233,9 @@ class FlinkDataTransformFactory(FlinkDataTransformation):
             table = self.t_env.sql_query(query)
         return table
   
-    def apply_transformations(self, table):
+    def apply_transformations(self):
+        table = self.table
+        
         transformations = self.config.get('transformations', [])
         for transform in transformations:
             if transform['type'] == 'filter':
@@ -249,66 +251,13 @@ class FlinkDataTransformFactory(FlinkDataTransformation):
         return table
 
 
-def add_jar_files(t_env):
-    # Assuming the JARs are in a 'lib' folder in the current directory
-    current_dir = os.path.dirname(os.path.realpath(__file__))
-    jar_files = [
-        f"file://{current_dir}/lib/flink-sql-connector-kafka-3.0.1-1.18.jar",
-        f"file://{current_dir}/lib/kafka-clients-3.4.1.jar",
-        f"file://{current_dir}/lib/flink-json-1.18.0.jar"
-    ]
-    t_env.get_config().get_configuration().set_string(
-            "pipeline.jars", ';'.join(jar_files)
-        )
-
 if __name__ == "__main__":
-
-    env = StreamExecutionEnvironment.get_execution_environment()
-    env.set_parallelism(1)
-    settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
-    t_env = StreamTableEnvironment.create(env, environment_settings=settings)
-    add_jar_files(t_env=t_env)
-    # kafka_connector_jar = "/Users/guangqianglu/Downloads/flink-connector-kafka-3.0.1-1.18.jar"
-    # t_env.get_config().get_configuration().set_string(
-    #     "pipeline.jars", f"file://{kafka_connector_jar}")
-    print(t_env.get_config().get_configuration().to_dict())
-
-
+    t_env = get_flink_t_env()
+    
     table = FlinkDataSourceFactory(t_env=t_env, config=config).read()
     # table.execute().wait()
     
+    table = FlinkDataTransformFactory(t_env=t_env, config=config, table=table).execute_queries()
+    
     FlinkDataSinkFactory(t_env=t_env, config=config, table=table).sink()
     
-    # # Create source table
-    # create_kafka_source_table(t_env, config)
-
-    # # Create sink table
-    # # create_kafka_sink_table(t_env, config)
-    # create_console_sink_table(t_env, config)
-
-    # # Read from source
-    # source_table = t_env.from_path('source_table')
-
-    # # Apply transformations
-    # # result_table = apply_transformations(source_table, config['transformations'])
-
-    # # Execute queries
-    # print('[FLINK SQL START]:')
-    # for query_config in config['queries']:
-    #     query = query_config['query']
-    #     table_name = query_config['table_name']
-        
-    #     print('[Query]: {}'.format(query))
-    #     t_env.create_temporary_view(table_name, source_table)
-    #     result = t_env.sql_query(query=query)
-
-    #     print("[Schema]:")
-    #     result.print_schema()
-       
-
-    # # Write to sink
-    # # result_table.execute_insert('sink_table').wait()
-    # result.execute_insert('sink_table').wait()
-
-    # # Execute the job
-    # t_env.execute(config['app_name'])
