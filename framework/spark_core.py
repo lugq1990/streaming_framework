@@ -220,6 +220,7 @@ class SparkDataTransformFactory(DataTransformation):
     
     def execute_queries(self, df):
         queries = self.config['queries']
+        
         # loop for each query, for the first, will be df register as temp table.
         # for the following, will be df.registerTempTable(table_name)            
         print("[Spark SQL Started]")
@@ -321,6 +322,8 @@ class DataSourceFactory(DataSource):
         return df
         
   
+
+                
 class DataSinkFactory(DataSink):
     #TODO: currently is only for spark, for flink should be similar
     def __init__(self, config, spark):
@@ -331,13 +334,62 @@ class DataSinkFactory(DataSink):
             'file': self.sink_to_file,
             'kafka': self.sink_to_kafka,
         }
+        # decide to use sink mode or infer it from query and transformations
+        sink_mode = self.sink_config.get('mode')
+        if not sink_mode:
+            sink_mode = DataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
+        self.sink_mode = sink_mode
         self.spark = spark
         
+    @staticmethod
+    def _infer_output_mode(query_list=None, transforms_list=None):
+        """Infer the output mode to append or complete for sink operation, 
+        
+        could provide with related query or the transformation list
+
+        Args:
+            query_list (_type_, optional): _description_. Defaults to None.
+            transforms_list (_type_, optional): _description_. Defaults to None.
+        """
+        agg_functions = ['sum(', 'count(', 'avg(', 'max(', 'min(']
+        
+        if not query_list and not transforms_list:
+            print("Please do provide query_list or transforms_list")
+            return 'complete'
+        if query_list:
+            if isinstance(query_list, str): 
+                query_list = [query_list]
+            for query in query_list:
+                # if any of the query contains aggregation, then complete mode
+                query_lower = query.lower()
+                has_aggregation = any(func in query_lower for func in agg_functions)
+                has_group_by = 'group by' in query_lower
+                has_window = 'window' in query_lower
+                
+                # key logic to decide the output mode
+                if not has_aggregation and not has_group_by:
+                    return "append"  # Simple select, filter, map operations
+                elif has_aggregation and has_group_by:
+                    if has_window:
+                        return "append"  # Aggregation with windowing
+                    else:
+                        return "complete"  # Aggregation without windowing
+                else:
+                    return "complete"  # Default to complete mode for other cases
+        if transforms_list:
+            if isinstance(transforms_list, str):
+                transforms_list = [transforms_list]
+            mode = 'append'
+            for transform in transforms_list:
+                if 'groupby' not in transform:
+                    mode = 'complete'
+            return mode
+
     def sink_to_console(self, df):
         """based on query has aggregation or not, if agg then should complete mode""" 
-        mode = self.sink_config.get('mode', 'append')
+        # mode = self.sink_config.get('mode', 'append')
         query = df.writeStream \
-            .outputMode(mode) \
+            .outputMode(self.sink_mode) \
             .format("console") \
             .start()
             
@@ -392,6 +444,7 @@ class DataSinkFactory(DataSink):
         query = selected_df \
             .writeStream \
             .format("kafka") \
+            .outputMode(self.sink_mode) \
             .option("kafka.bootstrap.servers", bootstrap_servers) \
             .option("topic", topic) \
             .start()
