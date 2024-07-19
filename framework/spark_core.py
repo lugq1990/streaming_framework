@@ -333,7 +333,8 @@ class DataSinkFactory(DataSink):
         }
         self.spark = spark
         
-    def sink_to_console(self, df): 
+    def sink_to_console(self, df):
+        """based on query has aggregation or not, if agg then should complete mode""" 
         mode = self.sink_config.get('mode', 'append')
         query = df.writeStream \
             .outputMode(mode) \
@@ -393,7 +394,6 @@ class DataSinkFactory(DataSink):
             .format("kafka") \
             .option("kafka.bootstrap.servers", bootstrap_servers) \
             .option("topic", topic) \
-            .option("checkpointLocation", tempfile.mkdtemp()) \
             .start()
         query.awaitTermination()
             
