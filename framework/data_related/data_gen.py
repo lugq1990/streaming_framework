@@ -6,7 +6,7 @@ import random
 
 # Kafka configuration
 bootstrap_servers = ['localhost:9092']  # Replace with your Kafka broker address
-topic_name = 'test'  # Your Kafka topic name
+topic_name = 'testnew'  # Your Kafka topic name
 
 # Create Kafka producer
 producer = KafkaProducer(
@@ -24,14 +24,13 @@ def generate_fake_record():
         "id": key,
         "name": fake.name(),
         "email": fake.email(),
-        "date": fake.date_time_this_year().isoformat(),
+        "date_time": fake.date_time_this_year().isoformat(),
         "country": fake.country(),
         "company": fake.company(),
         "job": fake.job(),
         "phone": fake.phone_number(),
         "sentence": fake.sentence(),
-        "number": random.randint(1, 100),
-        "timestamp": fake.unix_time()
+        "number": random.randint(1, 100)
     }
     record = {"key": key, "value": value}
     return value
@@ -56,7 +55,7 @@ def send_fake_records(num_records, delay=1):
 
 # Main execution
 if __name__ == "__main__":
-    num_records = 100  # Number of fake records to generate and send
+    num_records = 10  # Number of fake records to generate and send
     delay_between_sends = 1  # Delay in seconds between each send
     
     print(f"Sending {num_records} fake records to topic '{topic_name}'...")

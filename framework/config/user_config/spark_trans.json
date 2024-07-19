@@ -11,7 +11,7 @@
         "type": "kafka",
         "read_config": {
             "bootstrap_servers": "localhost:9092",
-            "input_topic": "test",
+            "input_topic": "testnew",
             "group_id": "MySparkStreamingApp",
             "key_deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
             "value_deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
@@ -21,15 +21,7 @@
         {
             "table_name": "t1",
             "query": "select * from t1"
-        },
-        {
-            "table_name": "t2",
-            "query": "select country, id from t2 limit 10"
-        },
-        {
-            "table_name": "t3",
-            "query": "select country, count(1) as n from t2 group by country order by n desc"
-        } 
+        }
     ],
     "transformations": [
         {
@@ -75,7 +67,7 @@
         }
     ],
     "sink": {
-        "sink_type": "console",
+        "sink_type": "kafka",
         "sink_config":{
             "mode": "complete",
             "bootstrap_servers": "localhost:9092",

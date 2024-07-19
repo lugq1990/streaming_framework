@@ -59,6 +59,36 @@ class DataUtil:
         spark_schema = StructType([StructField(field_name, StringType(), True) for field_name in schema_list])
         return spark_schema
     
+    @staticmethod
+    def escape_sql_keywords(columns):
+        """flink sql has some key words that should be escaped with ``
+
+        Args:
+            columns (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        sql_keywords = {
+            "add", "all", "alter", "and", "any", "as", "asc", "between", "by", "case", 
+            "cast", "check", "column", "constraint", "create", "current_date", 
+            "current_time", "current_timestamp", "date", "delete", "desc", "distinct", 
+            "drop", "else", "end", "exists", "false", "for", "from", "group", "having", 
+            "in", "inner", "insert", "interval", "is", "join", "left", "like", "limit", 
+            "not", "null", "on", "or", "order", "outer", "primary", "references", 
+            "right", "select", "set", "table", "then", "to", "true", "union", "unique", 
+            "update", "using", "values", "when", "where", "timestamp"
+        }
+
+        escaped_columns = []
+        for col in columns:
+            col_name, col_type = col.split()
+            if col_name.lower() in sql_keywords:
+                col_name = f'`{col_name}`'
+            escaped_columns.append(f"{col_name} {col_type}")
+        
+        return escaped_columns
+
 
     @staticmethod
     def _infer_kafka_data_schema(input_topic, bootstrap_servers, group_id=None, return_engine='flink', auto_offset_reset='earliest'):
@@ -92,6 +122,10 @@ class DataUtil:
                     schema[col] = "TIMESTAMP"
                 else:
                     schema[col] = "STRING"
+            
+            column_list = ['{} {}'.format(col, col_type) for col,col_type in schema.items()]
+            column_list = DataUtil.escape_sql_keywords(columns=column_list)
+            schema = ', '.join(column_list)
             return schema
         else:
             # convert to structure type for spark
