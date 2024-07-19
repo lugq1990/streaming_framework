@@ -8,8 +8,8 @@
         "execution.checkpointing.externalized-checkpoint-retention": "RETAIN_ON_CANCELLATION",
         "execution.checkpointing.unaligned": true,
         "state.backend": "rocksdb",
-        "state.checkpoints.dir": "file:///tmp/flink_checkpoints",
-        "state.savepoints.dir": "file:///tmp/flink_checkpoints",
+        "state.checkpoints.dir": "/tmp/flink_checkpoints",
+        "state.savepoints.dir": "/tmp/flink_checkpoints",
         "restart-strategy": "fixed-delay",
         "restart-strategy.fixed-delay.attempts": 3,
         "restart-strategy.fixed-delay.delay": "10 s",
@@ -35,5 +35,13 @@
         "taskmanager.memory.task.off-heap.size": "0mb",
         "taskmanager.memory.managed.size": "512mb",
         "taskmanager.cpu.cores": 2.0
+    },
+    "high_availability": {
+        "high-availability": "zookeeper",
+        "high-availability.zookeeper.quorum": "zk1:2181,zk2:2181,zk3:2181",
+        "high-availability.zookeeper.path.root": "/flink",
+        "high-availability.cluster-id": "my-flink-cluster",
+        "high-availability.storageDir": "hdfs://namenode:8020/flink/recovery",
+        "high-availability.jobmanager.port": "50000-50100"
     }
 }

@@ -12,17 +12,6 @@ from uuid import uuid4
 from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env
 
 
-# config = load_user_config('spark_trans.json')
-# print('*' * 100)
-# print("Get config: ", config)
-# print('*' * 100)
-# source_config = config['source']['read_config']
-# input_topic = source_config['input_topic']
-# bootstrap_servers = source_config['bootstrap_servers']
-
-# schema = DataUtil._infer_kafka_data_schema(input_topic=input_topic, bootstrap_servers=bootstrap_servers)
-
-
 class FlinkDataSink(ABC):
     def __init__(self, t_env, config) -> None:
         self.config = config
@@ -253,6 +242,7 @@ class FlinkDataTransformFactory(FlinkDataTransformation):
 
 if __name__ == "__main__":
     t_env = get_flink_t_env()
+    config = load_user_config('project_trans.json')
     
     table = FlinkDataSourceFactory(t_env=t_env, config=config).read()
     # table.execute().wait()

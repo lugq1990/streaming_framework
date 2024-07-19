@@ -26,6 +26,21 @@ def add_pyflink_jar_files(t_env):
             "pipeline.jars", ';'.join(jar_files)
         )
     
+    
+def apply_config(t_env, config):
+    configuration = t_env.get_config().get_configuration()
+    
+    for section in ['streaming', 'resources', 'high_availability']:
+        if section not in config: continue
+        for key, value in config[section].items():
+            if isinstance(value, bool):
+                configuration.set_boolean(key, value)
+            elif isinstance(value, int):
+                configuration.set_integer(key, value)
+            elif isinstance(value, float):
+                configuration.set_float(key, value)
+            else:
+                configuration.set_string(key, str(value))
 
 def get_flink_t_env():
     """Flink config setting should happen here!
@@ -34,13 +49,15 @@ def get_flink_t_env():
         _type_: _description_
     """
     env = StreamExecutionEnvironment.get_execution_environment()
-    env.set_parallelism(1)
     settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
     t_env = StreamTableEnvironment.create(env, environment_settings=settings)
+    
+    flink_config = load_config('flink_config')
+    
+    # add with jars and apply the default config for HA
     add_pyflink_jar_files(t_env=t_env)
-    # kafka_connector_jar = "/Users/guangqianglu/Downloads/flink-connector-kafka-3.0.1-1.18.jar"
-    # t_env.get_config().get_configuration().set_string(
-    #     "pipeline.jars", f"file://{kafka_connector_jar}")
+    apply_config(t_env=t_env, config=flink_config)
+    
     print(t_env.get_config().get_configuration().to_dict())
     return t_env
 
@@ -310,6 +327,8 @@ def load_config(file_name, config_folder='framework_config'):
 
 
 def load_user_config(file_name, config_folder='user_config'):
+    if not file_name.endswith('.json'):
+        file_name += '.json'
     config_path = os.path.join(base_config_path, config_folder, file_name)
     
     with open(config_path, 'r') as file:
