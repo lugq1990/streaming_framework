@@ -230,7 +230,7 @@ class SparkDataTransformFactory(DataTransformation):
             
             self.spark.catalog.dropTempView(table_name)
             df.createOrReplaceTempView(table_name)
-            df = spark.sql(sql_query)
+            df = self.spark.sql(sql_query)
            
         # last df will be returned
         return df
@@ -327,18 +327,24 @@ class SparkDataSourceFactory(DataSource):
 class SparkDataSinkFactory(DataSink):
     #TODO: currently is only for spark, for flink should be similar
     def __init__(self, config, spark):
-        self.config = config['sink']
-        self.sink_config = self.config['sink_config']
+        self.config = config
         self.sink_factary = {
             'console': self.sink_to_console,
             'file': self.sink_to_file,
             'kafka': self.sink_to_kafka,
         }
+        
+        self._sink_config = config['sink']['sink_config']
+        self._sink_type = config['sink']['sink_type']
+        if self._sink_type not in self.sink_factary:
+            raise Exception(f'Sink type {self._sink_type} is not supported')
+        
         # decide to use sink mode or infer it from query and transformations
-        sink_mode = self.sink_config.get('mode')
-        if not sink_mode:
-            sink_mode = SparkDataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
-        self.sink_mode = sink_mode
+        _sink_mode = config['sink']['sink_config'].get('mode')
+        if not _sink_mode:
+            print("[NOTE]: _sink_mode not provided, start to inference based on config!")
+            _sink_mode = SparkDataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
+        self._sink_mode = _sink_mode
         self.spark = spark
         
     @staticmethod
@@ -359,23 +365,24 @@ class SparkDataSinkFactory(DataSink):
         if query_list:
             if isinstance(query_list, str): 
                 query_list = [query_list]
+            mode = 'append'
             for query in query_list:
+                query_str = query['query']
                 # if any of the query contains aggregation, then complete mode
-                query_lower = query.lower()
+                query_lower = query_str.lower()
                 has_aggregation = any(func in query_lower for func in agg_functions)
                 has_group_by = 'group by' in query_lower
                 has_window = 'window' in query_lower
                 
                 # key logic to decide the output mode
-                if not has_aggregation and not has_group_by:
-                    return "append"  # Simple select, filter, map operations
-                elif has_aggregation and has_group_by:
+                if has_aggregation and has_group_by:
                     if has_window:
-                        return "append"  # Aggregation with windowing
+                        mode = "append"  # Aggregation with windowing
                     else:
-                        return "complete"  # Aggregation without windowing
-                else:
-                    return "complete"  # Default to complete mode for other cases
+                        mode = "complete"  # Aggregation without windowing
+                        return mode
+            return mode
+                
         if transforms_list:
             if isinstance(transforms_list, str):
                 transforms_list = [transforms_list]
@@ -387,9 +394,9 @@ class SparkDataSinkFactory(DataSink):
 
     def sink_to_console(self, df):
         """based on query has aggregation or not, if agg then should complete mode""" 
-        # mode = self.sink_config.get('mode', 'append')
+        # mode = self._sink_config.get('mode', 'append')
         query = df.writeStream \
-            .outputMode(self.sink_mode) \
+            .outputMode(self._sink_mode) \
             .format("console") \
             .start()
             
@@ -398,9 +405,9 @@ class SparkDataSinkFactory(DataSink):
     
     def sink_to_file(self, df):
         """Support both local file and hdfs"""
-        file_path = self.sink_config['file_path']
-        file_type = self.sink_config.get('file_type', 'csv')
-        infer_schema = self.sink_config.get('infer_schema', 'true')
+        file_path = self._sink_config['file_path']
+        file_type = self._sink_config.get('file_type', 'csv')
+        infer_schema = self._sink_config.get('infer_schema', 'true')
         
         query = df.write.format(file_type).option("header", infer_schema).save(file_path)
         query.awaitTermination()
@@ -418,12 +425,12 @@ class SparkDataSinkFactory(DataSink):
         Returns:
             _type_: _description_
         """
-        selected_cols = self.sink_config.get('selected_cols', None)
-        key_col = self.sink_config.get('key_col')
-        default_split_key = self.sink_config.get('default_split_key', ',')
+        selected_cols = self._sink_config.get('selected_cols', None)
+        key_col = self._sink_config.get('key_col')
+        default_split_key = self._sink_config.get('default_split_key', ',')
         
-        bootstrap_servers = self.sink_config['bootstrap_servers']
-        topic = self.sink_config['sink_topic']
+        bootstrap_servers = self._sink_config['bootstrap_servers']
+        topic = self._sink_config['sink_topic']
 
         
         if selected_cols and not isinstance(selected_cols, list) and isinstance(selected_cols, str):
@@ -444,19 +451,15 @@ class SparkDataSinkFactory(DataSink):
         query = selected_df \
             .writeStream \
             .format("kafka") \
-            .outputMode(self.sink_mode) \
+            .outputMode(self._sink_mode) \
             .option("kafka.bootstrap.servers", bootstrap_servers) \
             .option("topic", topic) \
             .start()
         query.awaitTermination()
             
     def sink(self, df):
-        sink_type = self.config['sink_type']
         
-        if sink_type not in self.sink_factary:
-            raise Exception(f'Sink type {sink_type} is not supported')
-        
-        return self.sink_factary[sink_type](df)
+        return self.sink_factary[self._sink_type](df)
             
 
 if __name__ == '__main__':

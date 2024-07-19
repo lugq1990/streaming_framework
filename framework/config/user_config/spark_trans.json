@@ -69,6 +69,7 @@
     "sink": {
         "sink_type": "console",
         "sink_config":{
+
             "bootstrap_servers": "localhost:9092",
             "sink_topic": "testout"
         }
