@@ -1,5 +1,6 @@
 {
     "app_name": "MySparkStreamingApp",
+    "run_engine": "flink",
     "batchInterval": 5,
     "application_config": {
         "spark.master":"local[2]",

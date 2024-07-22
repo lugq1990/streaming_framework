@@ -1,3 +1,14 @@
+"""Main entry point of streaming framework, main framework supported:
+- Spark
+- flink
+
+User could select engine to execute streaming job.
+
+NOTE:
+Regarding to SQL side, user should provide valid SQL to execute, if run error with sql side, then engine will stop and raise 
+Runtime error for query!
+
+"""
 from abc import ABC, abstractmethod
 from spark_core import SparkDataSourceFactory, SparkDataTransformFactory, SparkDataSinkFactory
 from flink_core import FlinkDataSourceFactory, FlinkDataTransformFactory, FlinkDataSinkFactory
@@ -60,6 +71,14 @@ if __name__ == "__main__":
     
     config = load_user_config(config_name)
     
-    # framework = SparkStreamFramework(config=config)
-    framework = FlinkStreamFramework(config=config)
+    run_engine = config.get('run_engine', 'spark').lower()
+    
+    if run_engine == 'spark':
+        framework = SparkStreamFramework(config=config)
+    elif run_engine == 'flink':
+        framework = FlinkStreamFramework(config=config)
+    else:
+        raise Exception('The run engine should be spark or flink!')
+    
     framework.run()
+    
