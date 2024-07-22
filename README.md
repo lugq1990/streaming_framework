@@ -68,13 +68,41 @@ For spark streaming is batched based, some of configs should be configed in app 
 
 ```json
 {
-    "app_name": "MySparkStreamingApp",
-    "batchInterval": 5,
-    "application_config": {
-        "spark.master":"local[2]",
-        "spark.app.name":"MySparkStreamingApp",
-        "spark.streaming.interval":500,
-        "spark.streaming.stopGracefullyOnShutdown":true
+    "streaming": {
+        "spark.streaming.checkpointInterval": "1 minutes",
+        "spark.streaming.checkpointLocation": "hdfs://namenode:8020/user/spark/checkpoints",
+        "spark.streaming.batchDuration": "10 seconds",
+        "spark.streaming.gracefulShutdown.enabled": true,
+        "spark.streaming.gracefulShutdown.timeout": "60 seconds",
+        "spark.streaming.restartStrategy.attempts": 3,
+        "spark.streaming.restartStrategy.delay": "10 seconds",
+        "spark.streaming.checkpointCleaner.enabled": true,
+        "spark.streaming.checkpointCleaner.cleanupInterval": "1 day",
+        "spark.streaming.checkpointCleaner.retentionDuration": "7 days",
+        "spark.streaming.monitoring.checkpointMetrics": true,
+        "spark.streaming.recoveryMode": "CHECKPOINT",
+        "spark.streaming.statePersistence.enabled": true,
+        "spark.streaming.statePersistence.storageLevel": "MEMORY_AND_DISK_SER",
+        "spark.sql.streaming.stateStore.providerClass": "org.apache.spark.sql.execution.streaming.state.HDFSBackedStateStoreProvider",
+        "spark.streaming.backpressure.enabled": "true",
+        "spark.streaming.kafka.maxRatePerPartition": "100",
+        "spark.streaming.kafka.minRatePerPartition": "10",
+        "spark.streaming.stopGracefullyOnShutdown": "true",
+        "spark.sql.streaming.statefulOperator.checkCorrectness.enabled": "true",
+        "spark.streaming.receiver.writeAheadLog.enable": "true",
+        "spark.streaming.blockInterval": "200ms",
+        "spark.streaming.unpersist": "true",
+        "spark.streaming.kafka.consumer.poll.ms": "512",
+        "spark.streaming.backpressure.initialRate": "50",
+        "spark.sql.streaming.minBatchesToRetain": "10",
+        "spark.sql.streaming.stateStore.maintenanceInterval": "2s"
+    },
+    "resources": {
+        "spark.executor.memory": "4g",
+        "spark.executor.cores": "2",
+        "spark.driver.memory": "2g",
+        "spark.driver.cores": "1",
+        "spark.sql.shuffle.partitions": "200"
     }
 }
 ```
@@ -102,32 +130,52 @@ Sample config, for statebackend should be a list of supported: memory, filesyste
 
 ```json
 {
-    "appName": "MyFlinkApp",
-    "savepointPath": "file:///path/to/savepoint",
-    "taskManagerMemory": "1024m",
-    "numTaskSlots": 4,
-    "parallelism": 2,
-    "jobManagerMemory": "2048m",
-    "restartStrategy": {
-        "type": "fixed-delay",
-        "attempts": 3,
-        "delay": "10 s"
+    "streaming": {
+        "execution.checkpointing.interval": 60000,
+        "execution.checkpointing.mode": "EXACTLY_ONCE",
+        "execution.checkpointing.timeout": 600000,
+        "execution.checkpointing.min-pause": 5000,
+        "execution.checkpointing.max-concurrent-checkpoints": 1,
+        "execution.checkpointing.externalized-checkpoint-retention": "RETAIN_ON_CANCELLATION",
+        "execution.checkpointing.unaligned": true,
+        "state.backend": "rocksdb",
+        "state.checkpoints.dir": "/tmp/flink_checkpoints",
+        "state.savepoints.dir": "/tmp/flink_checkpoints",
+        "restart-strategy": "fixed-delay",
+        "restart-strategy.fixed-delay.attempts": 3,
+        "restart-strategy.fixed-delay.delay": "10 s",
+        "execution.checkpointing.cleanup-mode": "retain_on_cancellation",
+        "execution.checkpointing.tolerable-failed-checkpoints": 3,
+        "execution.checkpointing.prefer-checkpoint-for-recovery": true,
+        "execution.checkpointing.recover-without-channel-state": true,
+        "state.backend.incremental": true,
+        "execution.checkpointing.alignment-timeout": 20000,
+        "state.backend.local-recovery": true,
+        "execution.checkpointing.snapshot-compression": true
     },
-    "checkpoint":{
-        "path": "file:///path/to/checkpoint",
-        "checkpointInterval": 6000
+    "resources": {
+        "jobmanager.memory.process.size": "2048m",
+        "taskmanager.memory.process.size": "4096m",
+        "taskmanager.numberOfTaskSlots": 2,
+        "parallelism.default": 2,
+        "taskmanager.memory.network.fraction": 0.1,
+        "taskmanager.memory.network.min": "64mb",
+        "taskmanager.memory.network.max": "1gb",
+        "taskmanager.memory.framework.heap.size": "128mb",
+        "taskmanager.memory.task.heap.size": "512mb",
+        "taskmanager.memory.task.off-heap.size": "0mb",
+        "taskmanager.memory.managed.size": "512mb",
+        "taskmanager.cpu.cores": 2.0
     },
-    "stateBackend": {
-        "type": "filesystem",
-        "path": "file:///path/to/state/backend"
-    },
-    "highAvailability": {
-        "mode": "zookeeper",
-        "zookeeperQuorum": "localhost:2181",
-        "storagePath": "file:///path/to/ha/storage"
+    "high_availability": {
+        "high-availability": "zookeeper",
+        "high-availability.zookeeper.quorum": "zk1:2181,zk2:2181,zk3:2181",
+        "high-availability.zookeeper.path.root": "/flink",
+        "high-availability.cluster-id": "my-flink-cluster",
+        "high-availability.storageDir": "hdfs://namenode:8020/flink/recovery",
+        "high-availability.jobmanager.port": "50000-50100"
     }
 }
-
 ```
 
 
@@ -165,10 +213,19 @@ As currently is streaming based, but for source and sink are kafka supported bes
 
 ### feedback
 
-Already 2 projects have use this framework and will expand it to more projects.
+For each project wil have it's own config, and will provide a `feedback` module to help user to get more insights.
 
 ### real use case for projects
 
 - Transaction filtering, alerting related
 - Real time dashboard refreshing
+
+
+### TODO list
+- Provide `savepoint` API that user could call to stop app, and re-start app from savepoint
+- Add logging for better reading format
+- Both spark and flink support AGG logic
+- File based read and sink support
+- State save as a pluggin like redis or hbase for high-throughout state
+- Monitor functionality
 
