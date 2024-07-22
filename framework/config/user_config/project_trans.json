@@ -11,16 +11,24 @@
         "type": "kafka",
         "read_config": {
             "bootstrap_servers": "localhost:9092",
-            "input_topic": "testnew",
+            "input_topic": "test",
             "group_id": "MySparkStreamingApp",
+            "read_offset": "earliest-offset",
             "key_deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
-            "value_deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
+            "value_deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
+            "with_watermark": true,
+            "watermark_on": "event_timestamp",
+            "watermark_delay": "'5' SECOND"
         }
     },
     "queries":[
         {
             "table_name": "t1",
             "query": "select * from t1"
+        },
+        {
+            "table_name": "t2",
+            "query": "SELECT  TUMBLE_START(event_time, INTERVAL '1' second) AS window_start, COUNT(*) AS n FROM t2 GROUP BY TUMBLE(event_time, INTERVAL '1' second)"
         }
     ],
     "transformations": [

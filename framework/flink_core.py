@@ -60,23 +60,45 @@ class FlinkDataSourceFactory(FlinkDataSource):
         pass
     
     def create_kafka_source_table(self):
-        source_config = self.config['source']['read_config']
-        input_topic = source_config['input_topic']
-        bootstrap_servers = source_config['bootstrap_servers']
+        read_config = self.config['source']['read_config']
+        input_topic = read_config['input_topic']
+        bootstrap_servers = read_config['bootstrap_servers']
+        read_offset = read_config.get('read_offset', "earliest-offset")
+        group_id = read_config.get('group_id', 'flink_read')
+        
         
         schema = DataUtil._infer_kafka_data_schema(input_topic=input_topic, bootstrap_servers=bootstrap_servers)
+        
         print("Fink schema from kafka: ", schema)
+        
+        # whether or not to add watermark?
+        with_watermark = read_config.get('with_watermark')
+        if with_watermark:
+            # if with watermark, then add it to schema
+            # NOTE: for `watermark_on` column, should be timestamp, and convert based on sql
+            watermark_on = read_config.get('watermark_on')
+            watermark_delay = read_config.get('watermark_delay')
+            
+            # add new col based on timestamp
+            watermark_col = watermark_on.replace('timestamp', 'time') 
+            watermark_cols = f""", {watermark_col} as TO_TIMESTAMP(FROM_UNIXTIME({watermark_on} / 1000)),
+                WATERMARK FOR {watermark_col} AS {watermark_col} - INTERVAL {watermark_delay}"""
+            
+            # add to schema
+            schema += watermark_cols 
+            
+            print("Fink schema from kafka with watermark added: ", schema)
     
         flink_sql = f"""
             CREATE TABLE {self.source_table_name} (
             {schema}
             ) WITH (
                 'connector' = 'kafka',
-                'topic' = '{source_config['input_topic']}',
-                'properties.bootstrap.servers' = '{source_config['bootstrap_servers']}',
-                'properties.group.id' = '{source_config['group_id']}',
+                'topic' = '{input_topic}',
+                'properties.bootstrap.servers' = '{bootstrap_servers}',
+                'properties.group.id' = '{group_id}',
                 'format' = 'json',
-                'scan.startup.mode' = 'earliest-offset',
+                'scan.startup.mode' = '{read_offset}',
                 'json.ignore-parse-errors' = 'true'
             )
         """
@@ -84,6 +106,8 @@ class FlinkDataSourceFactory(FlinkDataSource):
         
         self.t_env.execute_sql(flink_sql)
         
+
+
     def read(self):
         """Based on different of input_type, return is the created table_name could be used for later step.
 
@@ -123,6 +147,11 @@ class FlinkDataSinkFactory(FlinkDataSink):
         self.schema = FlinkDataSinkFactory.get_table_schema(table=table)
         print("Sink schema: {}".format(self.schema))
         self.sink_table = 'sink_table_{}'.format(uuid4().hex)
+        
+            
+    @udf(result_type=DataTypes.STRING())
+    def timestamp_to_string(ts):
+        return ts.strftime("%Y-%m-%d %H:%M:%S")
         
     def create_file_sink_table(self):
         pass

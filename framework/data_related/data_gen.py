@@ -3,10 +3,11 @@ from faker import Faker
 import json
 import time
 import random
+from datetime import datetime, timedelta
 
 # Kafka configuration
 bootstrap_servers = ['localhost:9092']  # Replace with your Kafka broker address
-topic_name = 'testnew'  # Your Kafka topic name
+topic_name = 'test'  # Your Kafka topic name
 
 # Create Kafka producer
 producer = KafkaProducer(
@@ -20,6 +21,10 @@ fake = Faker()
 def generate_fake_record():
     """Generate a fake record."""
     key = fake.uuid4()
+    # with data with late arriving later
+    current_time = datetime.now()
+    event_time = current_time - timedelta(minutes=random.randint(0, 5))
+    
     value = {
         "id": key,
         "name": fake.name(),
@@ -30,7 +35,8 @@ def generate_fake_record():
         "job": fake.job(),
         "phone": fake.phone_number(),
         "sentence": fake.sentence(),
-        "number": random.randint(1, 100)
+        "number": random.randint(1, 100),
+        'event_timestamp': int(event_time.timestamp() * 1000)  # Unix timestamp in milliseconds
     }
     record = {"key": key, "value": value}
     return value
