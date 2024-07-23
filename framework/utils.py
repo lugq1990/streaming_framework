@@ -11,6 +11,8 @@ import pandas as pd
 from pyflink.table.types import DataTypes as FlinkDataTypes 
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment, EnvironmentSettings
+from pyflink.datastream.state_backend import RocksDBStateBackend
+from pyflink.datastream.checkpoint_config import CheckpointingMode
 
 
 
@@ -65,6 +67,9 @@ class FlinkTableEnv:
             
             flink_config = load_config('flink_config')
             
+            # Add with HA
+            t_env = FlinkTableEnv._set_flink_ha(t_env=t_env, flink_config=flink_config)
+            
             # add with jars and apply the default config for HA
             add_pyflink_jar_files(t_env=t_env)
             apply_config(t_env=t_env, config=flink_config)
@@ -73,7 +78,14 @@ class FlinkTableEnv:
             return t_env
         else:
             return FlinkTableEnv._t_env
-        
+    
+    @staticmethod
+    def _set_flink_ha(t_env, flink_config):
+        t_env.get_checkpoint_config().set_checkpointing_mode(CheckpointingMode.EXACTLY_ONCE)
+        state_path = flink_config.get('state.savepoints.dir', 'hdfs:///flink/checkpoints')
+        state_backend = RocksDBStateBackend(state_path, True)
+        t_env.set_state_backend(state_backend)
+        return t_env
 
 class DataUtil:
     def __init__(self) -> None:

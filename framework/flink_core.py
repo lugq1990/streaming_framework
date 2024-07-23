@@ -304,6 +304,7 @@ class FlinkTableJobManager:
             return str(self.job_id)
         else:
             return "Failed to get JobClient"
+    
 
     def wait_for_job(self):
         if self.current_job_result:
@@ -322,6 +323,7 @@ class FlinkTableJobManager:
         return "Unable to get job status"
     
     def get_job_id(self):
+        # note: here should be changed, as couldn't get running job_id, as the wait logic, how to solve?
         if not self.job_id:
             print("Couldn't get job_id based on manager!")
         return self.job_id
