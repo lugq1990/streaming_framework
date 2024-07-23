@@ -3,3 +3,4 @@ pyyaml
 apache-flink 
 kafka-python
 faker
+flask

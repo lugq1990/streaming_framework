@@ -8,8 +8,9 @@ from pyflink.table.types import DataTypes
 from utils import load_user_config, DataUtil
 from abc import ABC
 from uuid import uuid4
+import threading
 
-from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env
+from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env, load_config
 
 
 class FlinkDataSink(ABC):
@@ -203,7 +204,7 @@ class FlinkDataSinkFactory(FlinkDataSink):
         create_sink_table_func = self.sink_factory[sink_type]
         create_sink_table_func()   
                       
-        self.table.execute_insert(self.sink_table).wait()
+        return self.table.execute_insert(self.sink_table)
 
     @staticmethod
     def get_table_schema(table):
@@ -269,14 +270,104 @@ class FlinkDataTransformFactory(FlinkDataTransformation):
         return table
 
 
+class FlinkTableJobManager:
+    """Utils support for flink, like savepoint, for how to get job_id, let rest to do it, here just with savepoint logic.
+    """
+    def __init__(self, t_env, config):
+        flink_config = load_config('flink_config')
+        app_name = config.get('app_name', 'MySparkStreamingApp')
+        self.config = config
+        self.t_env = t_env
+        # each app have it's own path
+        root_savepoint_dir = flink_config.get('state.savepoints.dir', '/tmp/flink_savepoint')
+        self.savepoint_dir = os.path.join(root_savepoint_dir, app_name)
+        self.job_id = None
+        
+    def run(self, wait=True):
+        print("Start to do pipeline processing for Flink!")
+        table = FlinkDataSourceFactory(t_env=self.t_env, config=self.config).read()
+        
+        table = FlinkDataTransformFactory(t_env=self.t_env, config=self.config, table=table).execute_queries()
+        
+        self.current_job_result = FlinkDataSinkFactory(t_env=self.t_env, config=self.config, table=table).sink()
+        
+        job_client = self.current_job_result.get_job_client()
+        if job_client:
+            self.job_id = job_client.get_job_id()
+            print('*' * 100)
+            print("get job_id from run: {}".format(self.job_id))
+            if wait:
+                self.wait_for_job()
+            else:
+                self.job_thread = threading.Thread(target=self.wait_for_job)
+                self.job_thread.start()
+            return str(self.job_id)
+        else:
+            return "Failed to get JobClient"
+
+    def wait_for_job(self):
+        if self.current_job_result:
+            try:
+                self.current_job_result.wait()
+            except Exception as e:
+                print(f"Job failed: {str(e)}")
+
+    def get_job_status(self):
+        if not self.job_id:
+            return "No job running"
+        if self.current_job_result:
+            job_client = self.current_job_result.get_job_client()
+            if job_client:
+                return str(job_client.get_job_status())
+        return "Unable to get job status"
+    
+    def get_job_id(self):
+        if not self.job_id:
+            print("Couldn't get job_id based on manager!")
+        return self.job_id
+
+    def trigger_savepoint(self):
+        if not self.job_id:
+            raise RuntimeError(f"{self.job_id} not exist!")
+        try:
+            savepoint_path = self.t_env.execute_sql(f"SAVEPOINT '{self.savepoint_dir}'").get_job_client().trigger_savepoint(self.savepoint_dir)
+            return f"{self.job_id} : Savepoint created at {savepoint_path}"
+        except Exception as e:
+            return f"Failed to trigger savepoint: {str(e)}"
+
+    def stop_job_with_savepoint(self):
+        if not self.job_id:
+            raise RuntimeError(f"{self.job_id} not exist!")
+        try:
+            self.t_env.execute_sql(f"STOP JOB '{self.job_id}' WITH SAVEPOINT '{self.savepoint_dir}'")
+            savepoint_path = os.path.join(self.savepoint_dir, str(self.job_id))
+            return f"Job stopped with savepoint at {savepoint_path}"
+        except Exception as e:
+            return f"Failed to stop job with savepoint: {str(e)}"
+
+    def resume_job_from_savepoint(self):
+        try:
+            self.t_env.execute_sql(f"SET state.savepoints.dir='{self.savepoint_dir}'")
+            from main_factory import FlinkStreamFramework
+            new_job_id = FlinkStreamFramework(config=self.config).run()
+            return f"Job resumed from savepoint with new job ID: {new_job_id}"
+        except Exception as e:
+            return f"Failed to resume job from savepoint: {str(e)}"
+    
+
 if __name__ == "__main__":
     t_env = get_flink_t_env()
     config = load_user_config('project_trans.json')
     
-    table = FlinkDataSourceFactory(t_env=t_env, config=config).read()
-    # table.execute().wait()
+    # table = FlinkDataSourceFactory(t_env=t_env, config=config).read()
+    # # table.execute().wait()
     
-    table = FlinkDataTransformFactory(t_env=t_env, config=config, table=table).execute_queries()
+    # table = FlinkDataTransformFactory(t_env=t_env, config=config, table=table).execute_queries()
     
-    FlinkDataSinkFactory(t_env=t_env, config=config, table=table).sink()
+    # job_id = FlinkDataSinkFactory(t_env=t_env, config=config, table=table).sink()
+    # print("JOB: {} started".format(job_id))
+    
+    job_id = FlinkTableJobManager(t_env=t_env, config=config).run()
+    print("get job_id: {}".format(job_id))
+    
     

@@ -12,7 +12,18 @@ from pyflink.table.types import DataTypes as FlinkDataTypes
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment, EnvironmentSettings
 
+
+
 base_config_path = os.path.join(os.path.dirname(__file__), 'config')
+
+
+def get_spark_session(config):
+    return SparkSessionSingleton.get_spark_instance(user_config=config)
+
+
+def get_flink_t_env(config=None):
+    return FlinkTableEnv.get_flink_table_env(user_config=config)
+
 
 def add_pyflink_jar_files(t_env):
     # Assuming the JARs are in a 'lib' folder in the current directory
@@ -42,25 +53,27 @@ def apply_config(t_env, config):
             else:
                 configuration.set_string(key, str(value))
 
-def get_flink_t_env():
-    """Flink config setting should happen here!
-
-    Returns:
-        _type_: _description_
-    """
-    env = StreamExecutionEnvironment.get_execution_environment()
-    settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
-    t_env = StreamTableEnvironment.create(env, environment_settings=settings)
+class FlinkTableEnv:
+    _t_env = None
     
-    flink_config = load_config('flink_config')
-    
-    # add with jars and apply the default config for HA
-    add_pyflink_jar_files(t_env=t_env)
-    apply_config(t_env=t_env, config=flink_config)
-    
-    print(t_env.get_config().get_configuration().to_dict())
-    return t_env
-
+    @staticmethod
+    def get_flink_table_env(user_config=None) : 
+        if not FlinkTableEnv._t_env:
+            env = StreamExecutionEnvironment.get_execution_environment()
+            settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
+            t_env = StreamTableEnvironment.create(env, environment_settings=settings)
+            
+            flink_config = load_config('flink_config')
+            
+            # add with jars and apply the default config for HA
+            add_pyflink_jar_files(t_env=t_env)
+            apply_config(t_env=t_env, config=flink_config)
+            
+            print(t_env.get_config().get_configuration().to_dict())
+            return t_env
+        else:
+            return FlinkTableEnv._t_env
+        
 
 class DataUtil:
     def __init__(self) -> None:
@@ -199,8 +212,6 @@ class DataUtil:
             return schema
         
 
-def get_spark_session(config):
-    return SparkSessionSingleton.get_spark_instance(user_config=config)
 
 
 # def get_streaming_context(batchDuration=10):

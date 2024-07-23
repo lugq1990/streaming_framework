@@ -38,9 +38,10 @@ class FlinkStreamFramework(StreamFramwork):
         
         table = FlinkDataTransformFactory(t_env=self.t_env, config=self.config, table=table).execute_queries()
         
-        FlinkDataSinkFactory(t_env=self.t_env, config=self.config, table=table).sink()
+        job_id = FlinkDataSinkFactory(t_env=self.t_env, config=self.config, table=table).sink()
         
-        print("Finished Spark pipeline!")
+        print("JOB: {}, inished Flink pipeline!")
+        return job_id
         
         
 
