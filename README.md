@@ -221,11 +221,13 @@ For each project wil have it's own config, and will provide a `feedback` module 
 - Real time dashboard refreshing
 
 
+### Framework usibility
+- Flink savepoint is based on each app with new name, a base state path and will create app folder, with each run will append savepoint to path, with job_id, user will get job_id based on REST API based on Flask. User could just call api with related config, then will start, resume, stop application with Flink Savapoint functionality.
+- Flink state backend is pluggeble, with `memory`, `FS`, `Rocksdb` for state save, and provide a config to choose one.
+
+
 ### TODO list
-- Provide `savepoint` API that user could call to stop app, and re-start app from savepoint
 - Add logging for better reading format
-- Both spark and flink support AGG logic
 - File based read and sink support
-- State save as a pluggin like redis or hbase for high-throughout state
 - Monitor functionality
 
