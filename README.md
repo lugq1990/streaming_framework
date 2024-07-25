@@ -226,7 +226,24 @@ For each project wil have it's own config, and will provide a `feedback` module 
 - Flink state backend is pluggeble, with `memory`, `FS`, `Rocksdb` for state save, and provide a config to choose one.
 
 
-### TODO list
-- File based read and sink support
-- Monitor functionality
+### Framework ability
+- Config file based for user query logic: `SQL` or `Transformation` operator
+- Each application wil have it's own path for checkpoint, savepoint etc.
+- Pre-defined HA configuration setting for spark and flink
+- HA settings
+  - Checkpoint setting, with duration, async type, checkpoint
+  - State backend supported
+  - Zookeeper setting for HA
+  - Checkpoint TTL and cleanup
+  - Exactly-once pipeline for kafka as source
+  - Dynamic setting for resource-allocation
+  - Spark gracely stop
+  - Recovery settings
+- A list of source and target file type supported
+- Formatted logging
+- Singleton for classes for logging, session, env etc.
+- Dyanmic schema reference from kafka source and dump, for later step query setting, will try to send out kafka source schema
+- A REST API for flink savepoint trigger
+- etc.
+
 

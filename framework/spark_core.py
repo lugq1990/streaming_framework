@@ -488,8 +488,7 @@ if __name__ == '__main__':
     logger.info('*' * 100)
     
     spark = get_spark_session(config=config)
+
+    manager = SparkJobManager(config=config, spark=spark)
+    manager.run()
     
-    df = SparkDataSourceFactory(config=config, spark=spark).read()
-    df = SparkDataTransformFactory(config, spark=spark).execute_queries(df)
-    df = SparkDataSinkFactory(config, spark=spark).sink(df)
- 
