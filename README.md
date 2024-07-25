@@ -211,15 +211,6 @@ As currently is streaming based, but for source and sink are kafka supported bes
   - Hive
   - HDFS
 
-### feedback
-
-For each project wil have it's own config, and will provide a `feedback` module to help user to get more insights.
-
-### real use case for projects
-
-- Transaction filtering, alerting related
-- Real time dashboard refreshing
-
 
 ### Framework usibility
 - Flink savepoint is based on each app with new name, a base state path and will create app folder, with each run will append savepoint to path, with job_id, user will get job_id based on REST API based on Flask. User could just call api with related config, then will start, resume, stop application with Flink Savapoint functionality.
@@ -246,4 +237,13 @@ For each project wil have it's own config, and will provide a `feedback` module 
 - A REST API for flink savepoint trigger
 - etc.
 
+
+### Feedback
+
+For each project wil have it's own config, and will provide a `feedback` module to help user to get more insights.
+
+### Real use case for projects
+
+- Transaction filtering, alerting related
+- Real time dashboard refreshing
 
