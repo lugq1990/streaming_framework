@@ -8,9 +8,18 @@ NOTE:
 Regarding to SQL side, user should provide valid SQL to execute, if run error with sql side, then engine will stop and raise 
 Runtime error for query!
 
+
+User is responsible to define user code logic and if needed with some configuration for application,
+if user provide some config, then will overwrite it from default.
+
+For each application will have it's own config file, then main func will load it and coordinate with resource manager
+to get resource to execute in isolated env.
+
+By default, resource manager is based on framework side with spark and flink.
+
 """
 from abc import ABC, abstractmethod
-from spark_core import SparkDataSourceFactory, SparkDataTransformFactory, SparkDataSinkFactory
+from spark_core import SparkJobManager
 from flink_core import FlinkTableJobManager
 from utils import get_spark_session, get_flink_t_env, load_user_config
 import os
@@ -48,17 +57,14 @@ class SparkStreamFramework(StreamFramwork):
         
     def run(self):
         print("Start to do pipeline processing for Spark!")
-        df = SparkDataSourceFactory(config=self.config, spark=self.spark).read()
         
-        df = SparkDataTransformFactory(config=self.config, spark=self.spark).execute_queries(df)
-        
-        df = SparkDataSinkFactory(config=self.config, spark=self.spark).sink(df)
-        
+        df = SparkJobManager(config=self.config, spark=self.spark).run()
+       
         print("Finished Flink pipeline!")
         
         
 if __name__ == "__main__":
-    # For config should just be provided by user
+    
     parser = ArgumentParser()
     
     parser.add_argument('--config_name', type=str, default='project_trans.json' ,help='The config file name.')

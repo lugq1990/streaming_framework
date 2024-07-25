@@ -460,6 +460,21 @@ class SparkDataSinkFactory(DataSink):
     def sink(self, df):
         
         return self.sink_factary[self._sink_type](df)
+    
+
+class SparkJobManager:
+    def __init__(self, config, spark) -> None:
+        self.config = config
+        self.spark = spark
+        
+    def run(self):
+        print("Spark job manager started:")
+        df = SparkDataSourceFactory(config=self.config, spark=self.spark).read()
+        
+        df = SparkDataTransformFactory(config=self.config, spark=self.spark).execute_queries(df)
+        
+        df = SparkDataSinkFactory(config=self.config, spark=self.spark).sink(df)
+        print("End of Spark job manager!")
             
 
 if __name__ == '__main__':
