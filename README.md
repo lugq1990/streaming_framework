@@ -227,7 +227,6 @@ For each project wil have it's own config, and will provide a `feedback` module 
 
 
 ### TODO list
-- Add logging for better reading format
 - File based read and sink support
 - Monitor functionality
 

@@ -15,6 +15,7 @@ import pandas as pd
 import json
 
 
+logger = get_logger()
 
 
 class DataSink(ABC):
@@ -223,7 +224,7 @@ class SparkDataTransformFactory(DataTransformation):
         
         # loop for each query, for the first, will be df register as temp table.
         # for the following, will be df.registerTempTable(table_name)            
-        print("[Spark SQL Started]")
+        logger.info("[Spark SQL Started]")
         for i, query in enumerate(queries):
             table_name = query['table_name']
             sql_query = query['query']
@@ -266,9 +267,9 @@ class SparkDataSourceFactory(DataSource):
         # first infer schema, change from pyspark to pykafka to infer schema
         # schema = _infer_df_schema_for_kafka(df=df, spark=self.spark)
         schema = DataUtil._get_spark_schema(bootstrap_servers=bootstrap_servers, input_topic=input_topic)
-        print('-'* 100)
-        print("Read schema:\n")
-        print(schema)
+        logger.info('-'* 100)
+        logger.info("Read schema:\n")
+        logger.info(schema)
         
         df = df.selectExpr("CAST(value AS STRING)")
     
@@ -342,7 +343,7 @@ class SparkDataSinkFactory(DataSink):
         # decide to use sink mode or infer it from query and transformations
         _sink_mode = config['sink']['sink_config'].get('mode')
         if not _sink_mode:
-            print("[NOTE]: _sink_mode not provided, start to inference based on config!")
+            logger.info("[NOTE]: _sink_mode not provided, start to inference based on config!")
             _sink_mode = SparkDataSinkFactory._infer_output_mode(query_list=self.config.get('queries'), transforms_list=self.config.get('transformations'))
         self._sink_mode = _sink_mode
         self.spark = spark
@@ -360,7 +361,7 @@ class SparkDataSinkFactory(DataSink):
         agg_functions = ['sum(', 'count(', 'avg(', 'max(', 'min(']
         
         if not query_list and not transforms_list:
-            print("Please do provide query_list or transforms_list")
+            logger.info("Please do provide query_list or transforms_list")
             return 'complete'
         if query_list:
             if isinstance(query_list, str): 
@@ -446,7 +447,7 @@ class SparkDataSinkFactory(DataSink):
         value_expr = to_json(struct([col(c) for c in selected_cols])).alias("value")
         selected_df = df.select(value_expr)
         # kafka_df = df.select(col("amount").cast("string").alias("value"), col("transaction_id").cast("string").alias("key"))
-        print('value_expr: ', value_expr)
+        logger.info('value_expr: ', value_expr)
         
         query = selected_df \
             .writeStream \
@@ -468,13 +469,13 @@ class SparkJobManager:
         self.spark = spark
         
     def run(self):
-        print("Spark job manager started:")
+        logger.info("Spark job manager started:")
         df = SparkDataSourceFactory(config=self.config, spark=self.spark).read()
         
         df = SparkDataTransformFactory(config=self.config, spark=self.spark).execute_queries(df)
         
         df = SparkDataSinkFactory(config=self.config, spark=self.spark).sink(df)
-        print("End of Spark job manager!")
+        logger.info("End of Spark job manager!")
             
 
 if __name__ == '__main__':
@@ -482,9 +483,9 @@ if __name__ == '__main__':
     
     # config = load_config('transform_to_console.json')
     config = load_user_config('project_trans.json')
-    print('*' * 100)
-    print(config)
-    print('*' * 100)
+    logger.info('*' * 100)
+    logger.info(config)
+    logger.info('*' * 100)
     
     spark = get_spark_session(config=config)
     

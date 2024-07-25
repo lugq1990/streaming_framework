@@ -21,10 +21,13 @@ By default, resource manager is based on framework side with spark and flink.
 from abc import ABC, abstractmethod
 from spark_core import SparkJobManager
 from flink_core import FlinkTableJobManager
-from utils import get_spark_session, get_flink_t_env, load_user_config
+from utils import get_spark_session, get_flink_t_env, load_user_config, get_logger
 import os
 from argparse import ArgumentParser
 from datetime import datetime
+
+
+logger = get_logger()
 
 
 class StreamFramwork(ABC):
@@ -42,9 +45,9 @@ class FlinkStreamFramework(StreamFramwork):
         self.t_env = get_flink_t_env()
     
     def run(self):
-        print("Start to do pipeline processing for Flink!")
+        logger.info("Start to do pipeline processing for Flink!")
         job_id = FlinkTableJobManager(t_env=self.t_env, config=self.config).run()
-        print("get job_id: {}".format(job_id))
+        logger.info("get job_id: {}".format(job_id))
     
         return job_id
         
@@ -56,11 +59,11 @@ class SparkStreamFramework(StreamFramwork):
         self.spark = get_spark_session(config=config)
         
     def run(self):
-        print("Start to do pipeline processing for Spark!")
+        logger.info("Start to do pipeline processing for Spark!")
         
         df = SparkJobManager(config=self.config, spark=self.spark).run()
        
-        print("Finished Flink pipeline!")
+        logger.info("Finished Flink pipeline!")
         
         
 if __name__ == "__main__":

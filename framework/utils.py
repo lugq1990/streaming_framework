@@ -4,7 +4,8 @@ from uuid import uuid4
 from pyspark.sql import SparkSession
 from pyspark.streaming import StreamingContext
 import os
-import tempfile
+import threading
+import logging
 from kafka import KafkaConsumer
 from pyspark.sql.types import *
 import pandas as pd
@@ -397,6 +398,75 @@ def convert_flink_table_data_type_to_sql_type(data_type):
     else:
         return data_type
     
+    
+def get_logger(name=None):
+    if name is None:
+        name = "streaming_framework"
+    return SingletonLogger.get_logger(name=name)
+
+
+class SingletonLogger:
+    _instance = None
+    _lock = threading.Lock()  # Lock for thread-safe singleton implementation
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:  # Double-checked locking
+                    cls._instance = super(SingletonLogger, cls).__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self, name: str = 'DefaultLogger', log_file: str = None):
+        if not self._initialized:
+            # Create a custom logger
+            self.logger = logging.getLogger(name)
+            self.logger.setLevel(logging.DEBUG)
+
+            # Create handlers
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+
+            # Optional file handler
+            if log_file:
+                file_handler = logging.FileHandler(log_file)
+                file_handler.setLevel(logging.DEBUG)
+                self.logger.addHandler(file_handler)
+
+            # Create formatters and add them to handlers
+            console_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            console_handler.setFormatter(console_format)
+            if log_file:
+                file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                file_handler.setFormatter(file_format)
+
+            # Add handlers to the logger
+            self.logger.addHandler(console_handler)
+
+            self._initialized = True
+
+    @classmethod
+    def get_logger(cls, name: str = 'DefaultLogger', log_file: str = None):
+        if cls._instance is None:
+            cls(name, log_file)
+        return cls._instance.logger
+
+    def debug(self, message: str):
+        self.logger.debug(message)
+
+    def info(self, message: str):
+        self.logger.info(message)
+
+    def warning(self, message: str):
+        self.logger.warning(message)
+
+    def error(self, message: str):
+        self.logger.error(message)
+
+    def critical(self, message: str):
+        self.logger.critical(message)
+
+
 
 
 if __name__ == '__main__':

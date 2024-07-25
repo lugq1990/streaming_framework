@@ -5,12 +5,14 @@ from pyflink.table.expressions import col
 from pyflink.table.udf import udf
 from pyflink.common.typeinfo import Types
 from pyflink.table.types import DataTypes
-from utils import load_user_config, DataUtil
 from abc import ABC
 from uuid import uuid4
 import threading
 
-from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env, load_config
+from utils import DataUtil, convert_flink_table_data_type_to_sql_type, get_flink_t_env, load_config, load_user_config, DataUtil, get_logger
+
+
+logger = get_logger()
 
 
 class FlinkDataSink(ABC):
@@ -70,7 +72,7 @@ class FlinkDataSourceFactory(FlinkDataSource):
         
         schema = DataUtil._infer_kafka_data_schema(input_topic=input_topic, bootstrap_servers=bootstrap_servers)
         
-        print("Fink schema from kafka: ", schema)
+        logger.info("Fink schema from kafka: ", schema)
         
         # whether or not to add watermark?
         with_watermark = read_config.get('with_watermark')
@@ -88,7 +90,7 @@ class FlinkDataSourceFactory(FlinkDataSource):
             # add to schema
             schema += watermark_cols 
             
-            print("Fink schema from kafka with watermark added: ", schema)
+            logger.info("Fink schema from kafka with watermark added: ", schema)
     
         flink_sql = f"""
             CREATE TABLE {self.source_table_name} (
@@ -103,7 +105,7 @@ class FlinkDataSourceFactory(FlinkDataSource):
                 'json.ignore-parse-errors' = 'true'
             )
         """
-        print("Source SQL: ", flink_sql)
+        logger.info("Source SQL: ", flink_sql)
         
         self.t_env.execute_sql(flink_sql)
         
@@ -122,12 +124,12 @@ class FlinkDataSourceFactory(FlinkDataSource):
         if source_type not in self.source_factory:
             raise ValueError('Invalid source type: {}'.format(source_type))
         
-        print("Start to read source: {}".format(source_type))
+        logger.info("Start to read source: {}".format(source_type))
         
         create_source_table_func = self.source_factory[source_type]
         create_source_table_func()
             
-        print("Create source table: {}".format(self.source_table_name))
+        logger.info("Create source table: {}".format(self.source_table_name))
 
         # just return table obj
         table = self.t_env.from_path(self.source_table_name)
@@ -146,7 +148,7 @@ class FlinkDataSinkFactory(FlinkDataSink):
         }
         # based on created table object to get the schmea.
         self.schema = FlinkDataSinkFactory.get_table_schema(table=table)
-        print("Sink schema: {}".format(self.schema))
+        logger.info("Sink schema: {}".format(self.schema))
         self.sink_table = 'sink_table_{}'.format(uuid4().hex)
         
             
@@ -165,7 +167,7 @@ class FlinkDataSinkFactory(FlinkDataSink):
                 'connector' = 'print'
             )
         """
-        print('Sink SQL:', console_query)
+        logger.info('Sink SQL:', console_query)
         self.t_env.execute_sql(console_query)
         
     def create_kafka_sink_table(self):
@@ -192,14 +194,14 @@ class FlinkDataSinkFactory(FlinkDataSink):
         Returns:
             _type_: _description_
         """
-        print("[SINK] sink started")
+        logger.info("[SINK] sink started")
         sink_type = self.config['sink']['sink_type']
         
         if not sink_type in self.sink_factory:
             raise ValueError("No such sink type: {}".format(sink_type))
           
         # 1. create sink table, 2. execute insert based on table.
-        print("Get sink type: {}".format(sink_type))
+        logger.info("Get sink type: {}".format(sink_type))
         
         create_sink_table_func = self.sink_factory[sink_type]
         create_sink_table_func()   
@@ -214,11 +216,11 @@ class FlinkDataSinkFactory(FlinkDataSink):
         field_data_types = schema.get_field_data_types()
         
         sql_fields = []
-        print('-' * 100)
-        print('table schema: {}'.format(schema))
-        print('-' * 100)
+        logger.info('-' * 100)
+        logger.info('table schema: {}'.format(schema))
+        logger.info('-' * 100)
         for name, data_type in zip(field_names, field_data_types):
-            print(data_type)
+            logger.info(data_type)
             sql_type = convert_flink_table_data_type_to_sql_type(data_type)
             sql_fields.append(f"{name} {sql_type}")
         
@@ -284,7 +286,6 @@ class FlinkTableJobManager:
         self.job_id = None
         
     def run(self, wait=True):
-        print("Start to do pipeline processing for Flink!")
         table = FlinkDataSourceFactory(t_env=self.t_env, config=self.config).read()
         
         table = FlinkDataTransformFactory(t_env=self.t_env, config=self.config, table=table).execute_queries()
@@ -294,8 +295,8 @@ class FlinkTableJobManager:
         job_client = self.current_job_result.get_job_client()
         if job_client:
             self.job_id = job_client.get_job_id()
-            print('*' * 100)
-            print("get job_id from run: {}".format(self.job_id))
+            logger.info('*' * 100)
+            logger.info("get job_id from run: {}".format(self.job_id))
             if wait:
                 self.wait_for_job()
             else:
@@ -311,7 +312,7 @@ class FlinkTableJobManager:
             try:
                 self.current_job_result.wait()
             except Exception as e:
-                print(f"Job failed: {str(e)}")
+                logger.info(f"Job failed: {str(e)}")
 
     def get_job_status(self):
         if not self.job_id:
@@ -325,7 +326,7 @@ class FlinkTableJobManager:
     def get_job_id(self):
         # note: here should be changed, as couldn't get running job_id, as the wait logic, how to solve?
         if not self.job_id:
-            print("Couldn't get job_id based on manager!")
+            logger.info("Couldn't get job_id based on manager!")
         return self.job_id
 
     def trigger_savepoint(self):
@@ -367,9 +368,9 @@ if __name__ == "__main__":
     # table = FlinkDataTransformFactory(t_env=t_env, config=config, table=table).execute_queries()
     
     # job_id = FlinkDataSinkFactory(t_env=t_env, config=config, table=table).sink()
-    # print("JOB: {} started".format(job_id))
+    # logger.info("JOB: {} started".format(job_id))
     
     job_id = FlinkTableJobManager(t_env=t_env, config=config).run()
-    print("get job_id: {}".format(job_id))
+    logger.info("get job_id: {}".format(job_id))
     
     
