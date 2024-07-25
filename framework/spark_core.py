@@ -476,12 +476,4 @@ if __name__ == '__main__':
     df = SparkDataSourceFactory(config=config, spark=spark).read()
     df = SparkDataTransformFactory(config, spark=spark).execute_queries(df)
     df = SparkDataSinkFactory(config, spark=spark).sink(df)
-    
-    # query = df.writeStream \
-    #     .outputMode("append") \
-    #     .format("console") \
-    #     .option("truncate", "false")  \
-    #     .start()
-    # query.awaitTermination()
-    
-    
+ 

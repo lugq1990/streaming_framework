@@ -11,7 +11,7 @@ Runtime error for query!
 """
 from abc import ABC, abstractmethod
 from spark_core import SparkDataSourceFactory, SparkDataTransformFactory, SparkDataSinkFactory
-from flink_core import FlinkDataSourceFactory, FlinkDataTransformFactory, FlinkDataSinkFactory
+from flink_core import FlinkTableJobManager
 from utils import get_spark_session, get_flink_t_env, load_user_config
 import os
 from argparse import ArgumentParser
@@ -34,13 +34,9 @@ class FlinkStreamFramework(StreamFramwork):
     
     def run(self):
         print("Start to do pipeline processing for Flink!")
-        table = FlinkDataSourceFactory(t_env=self.t_env, config=self.config).read()
-        
-        table = FlinkDataTransformFactory(t_env=self.t_env, config=self.config, table=table).execute_queries()
-        
-        job_id = FlinkDataSinkFactory(t_env=self.t_env, config=self.config, table=table).sink()
-        
-        print("JOB: {}, inished Flink pipeline!")
+        job_id = FlinkTableJobManager(t_env=self.t_env, config=self.config).run()
+        print("get job_id: {}".format(job_id))
+    
         return job_id
         
         
