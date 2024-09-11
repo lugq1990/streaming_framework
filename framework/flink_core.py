@@ -286,6 +286,8 @@ class FlinkTableJobManager:
         self.job_id = None
         
     def run(self, wait=True):
+        # the job_id is used for savepoint that could stop and start the application again.
+        # also support to get related info based on restful API
         table = FlinkDataSourceFactory(t_env=self.t_env, config=self.config).read()
         
         table = FlinkDataTransformFactory(t_env=self.t_env, config=self.config, table=table).execute_queries()
